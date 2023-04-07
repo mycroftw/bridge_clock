@@ -10,6 +10,9 @@ from clock_main_frame import RoundTimer, SetupDialog
 import validators as vld
 
 
+DEBUG = True
+
+
 class GameSettings:
 
     # Settings that can be loaded/saved
@@ -224,7 +227,6 @@ class BridgeTimer(RoundTimer):
         self._game_finished = True
 
     def on_menu_File_save(self, event) -> None:
-        # TODO: trigger file dialog, get path
         dlg = wx.FileDialog(
             self,
             message='Save configuration to file',
@@ -246,6 +248,8 @@ class BridgeTimer(RoundTimer):
         if dlg.ShowModal() == wx.ID_OK:
             pth = Path(dlg.GetPath())
             self.settings.load_from_file(Path(pth))
+            if not self._game_started:
+                self._initialize_game()
         event.Skip()
 
     def on_menu_File_Exit(self, event) -> None:
@@ -260,7 +264,7 @@ class BridgeTimer(RoundTimer):
                 new_values, restart = dlg.get_values()
                 self.settings.update_from_dict(new_values)
                 self._update_statusbar()
-                if restart:
+                if not self._game_started or restart:  # reset game
                     self._initialize_game()
         event.Skip()
 
@@ -296,27 +300,30 @@ class BridgeTimer(RoundTimer):
     @staticmethod
     def _handle_resize(obj: wx.Control, scale_text: str) -> None:
         """Scale text to fit window."""
-        # TODO: understand why this is one call behind on maximize.
         w, h = obj.GetSize().Get()
         tw, th = obj.GetTextExtent(scale_text).Get()
         scale = min(h/th, w/tw)
-        # old_size = obj.GetFont().GetPointSize()
+        old_size = obj.GetFont().GetPointSize()
         new_font = obj.GetFont().Scaled(scale)
         obj.SetFont(new_font)
-        # print(f"old: {old_size}, scale: {scale}, "
-        #       f"new: {object.GetFont().GetPointSize()}")
+        if DEBUG:
+            print(f"old: {old_size}, scale: {scale}, "
+                  f"new: {obj.GetFont().GetPointSize()}")
 
     def on_resize(self, event) -> None:
-        print("Event handler 'on_resize'")
         self._handle_resize(
             self.label_round,
             'ROUND 8' if self.settings.rounds < 10 else 'ROUND 88',
         )
+        print("Event handler 'on_resize', calling clock")
         self._handle_resize(
             self.label_clock,
             '88:88' if self.settings.round_length < 100 else '888:88',
         )
         self.panel_1.Layout()
+        if self.IsMaximized():
+            print("IsMaximized")
+            # TODO: for some reason it doesn't register.  Try to fix.
         event.Skip()
 
     def on_button_start(self, event) -> None:
@@ -356,6 +363,12 @@ class BridgeTimer(RoundTimer):
         if not self.clock.IsPositive():   # took last minute off clock
             self.clock = wx.TimeSpan(0, sec=5)
         self._update_clock()
+        event.Skip()
+
+    def on_goto_break(self, event):  # wxGlade: RoundTimer.<event_handler>
+        print("Event handler 'on_goto_break'")
+        # fake on_resize
+        self.on_resize(event)
         event.Skip()
 
     def on_button_end_round(self, event) -> None:
