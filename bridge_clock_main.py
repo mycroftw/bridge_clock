@@ -391,7 +391,7 @@ class BridgeTimer(RoundTimer):
     def on_clock_tick(self, event) -> None:
         """One of the timers tripped, call the appropriate reaction"""
 
-        if event.Id == self.timer.Id:
+        if event.Id == self.timer.GetId():
             # print('second_tick')
             self.clock.Subtract(wx.TimeSpan.Second())
             self._update_clock()
@@ -427,16 +427,17 @@ class PreferencesDialog(SetupDialog):
         if game_started:  # show the restart button
             self.check_restart.Show()
             self.check_restart.SetValue(False)
+            self.GetSizer().SetSizeHints(self)
 
     def get_values(self) -> Tuple[dict, bool]:
+
+        breaks_raw = self.text_break_rounds.GetValue()
+        breaks = (() if not breaks_raw else breaks_raw.split(','))
 
         ret = {
             'rounds': int(self.text_round_count.GetValue()),
             'round_length': int(self.text_round_length.GetValue()),
-            'breaks': tuple(
-                int(break_round.strip())
-                for break_round in self.text_break_rounds.GetValue().split(',')
-            ),
+            'breaks': breaks,
             'break_length': int(self.text_break_length.GetValue()),
             'break_visible': not self.check_invisible.GetValue(),
             'manual_restart': self.check_manual.GetValue(),
