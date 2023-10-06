@@ -124,6 +124,7 @@ class BridgeTimer(RoundTimer):
 
     def _initialize_game(self) -> None:
         self._game_started = False
+        self._game_finished = False
         self._pause_game()
         self._round_1()
         self._reset_clock()
@@ -291,7 +292,6 @@ class BridgeTimer(RoundTimer):
                 )
             if answer != wx.YES:
                 event.Veto()
-                event.Skip()
                 return
 
         self.settings.exit()
@@ -333,8 +333,8 @@ class BridgeTimer(RoundTimer):
         if self.button_start.GetValue():
             if self._game_finished:
                 answer = wx.MessageBox(
-                    'The game has ended.  Do you want to start another session '
-                    'with the same parameters?',
+                    'The game has ended.  Do you want to start another '
+                    'session with the same parameters?',
                     'Start another session',
                     wx.YES_NO | wx.CANCEL,
                     self,
@@ -366,6 +366,7 @@ class BridgeTimer(RoundTimer):
         event.Skip()
 
     def on_goto_break(self, event):  # wxGlade: RoundTimer.<event_handler>
+        # TODO: Implement this
         print("Event handler 'on_goto_break'")
         # fake on_resize
         self.on_resize(event)
@@ -432,12 +433,12 @@ class PreferencesDialog(SetupDialog):
     def get_values(self) -> Tuple[dict, bool]:
 
         breaks_raw = self.text_break_rounds.GetValue()
-        breaks = (() if not breaks_raw else breaks_raw.split(','))
+        breaks = (breaks_raw.split(',') if breaks_raw else ())
 
         ret = {
             'rounds': int(self.text_round_count.GetValue()),
             'round_length': int(self.text_round_length.GetValue()),
-            'breaks': breaks,
+            'breaks': tuple(int(b) for b in breaks),
             'break_length': int(self.text_break_length.GetValue()),
             'break_visible': not self.check_invisible.GetValue(),
             'manual_restart': self.check_manual.GetValue(),

@@ -117,17 +117,16 @@ class BreakValidator(wx.Validator):
             wx.MessageBox('break rounds must all be integers. Separate '
                           "multiple break rounds with commas (e.g. '4,9')")
             return False
+
         num_rounds = int(parent.TopLevelParent.text_round_count.GetValue())
-        break_in_range = [
-            break_round in range(1, num_rounds)
-            for break_round in breaks
-        ]
-        if all(break_in_range):
-            return True
-        else:
+        break_in_range = [break_round in range(1, num_rounds)
+                          for break_round in breaks]
+        if not all(break_in_range):
             wx.MessageBox('Break rounds must be between round 1 '
                           f'and {num_rounds-1}')
             return False
+
+        return True
 
 
 class BreakLengthValidator(wx.Validator):
