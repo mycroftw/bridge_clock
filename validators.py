@@ -37,14 +37,22 @@ class RoundCountValidator(wx.Validator):
         return True
 
     def Validate(self, parent):
-        # TODO: error flagging, implement warning
         print('in round count validator')
         ctrl = self.GetWindow()
         try:
             count = int(ctrl.GetValue())
         except ValueError:
+            wx.MessageBox('Round Count must be an integer')
             return False
-        return count in range(MIN_ROUNDS, MAX_ROUNDS)
+        if count in range(MIN_ROUNDS, MAX_ROUNDS+1):
+            # implement warning
+            if count > WARN_ROUNDS:
+                wx.MessageBox(f'Confirming: Your game has {count} rounds.')
+            return True
+        else:
+            wx.MessageBox(f'Please select between {MIN_ROUNDS}'
+                          f' and {MAX_ROUNDS} rounds.')
+            return False
 
 
 class RoundLengthValidator(wx.Validator):
@@ -63,14 +71,23 @@ class RoundLengthValidator(wx.Validator):
         return True
 
     def Validate(self, parent):
-        # TODO: error flagging, implement warning
         print('in round length validator')
         ctrl = self.GetWindow()
         try:
             count = int(ctrl.GetValue())
         except ValueError:
+            wx.MessageBox('Round Length must be an integer')
             return False
-        return count in range(MIN_LENGTH, MAX_LENGTH)
+        if count in range(MIN_LENGTH, MAX_LENGTH+1):
+            if count > WARN_LENGTH:
+                wx.MessageBox(
+                    f'Confirming: your rounds are {count} minutes long.'
+                )
+            return True
+        else:
+            wx.MessageBox('Round Length must be between '
+                          f'{MIN_LENGTH} and {MAX_LENGTH} minutes.')
+            return False
 
 
 class BreakValidator(wx.Validator):
@@ -97,14 +114,20 @@ class BreakValidator(wx.Validator):
         try:
             breaks = [int(x) for x in value.split(',')]
         except ValueError:
-            print('break rounds must all be integers')
+            wx.MessageBox('break rounds must all be integers. Separate '
+                          "multiple break rounds with commas (e.g. '4,9')")
             return False
         num_rounds = int(parent.TopLevelParent.text_round_count.GetValue())
         break_in_range = [
             break_round in range(1, num_rounds)
             for break_round in breaks
         ]
-        return all(break_in_range)
+        if all(break_in_range):
+            return True
+        else:
+            wx.MessageBox('Break rounds must be between round 1 '
+                          f'and {num_rounds-1}')
+            return False
 
 
 class BreakLengthValidator(wx.Validator):
@@ -123,11 +146,19 @@ class BreakLengthValidator(wx.Validator):
         return True
 
     def Validate(self, parent):
-        # TODO: error flagging, implement warning
         print('in break length validator')
         ctrl = self.GetWindow()
         try:
             count = int(ctrl.GetValue())
         except ValueError:
+            wx.MessageBox('Break Length must be an integer.')
             return False
-        return count in range(MIN_BREAK_LENGTH, MAX_BREAK_LENGTH)
+        if count in range(MIN_BREAK_LENGTH, MAX_BREAK_LENGTH+1):
+            if count > WARN_BREAK_LENGTH:
+                wx.MessageBox(f'Confirming: your breaks are each {count} '
+                              'minutes long.')
+            return True
+        else:
+            wx.MessageBox(f'Break length must be between {MIN_BREAK_LENGTH}'
+                          f' and {MAX_BREAK_LENGTH} minutes.')
+            return False
