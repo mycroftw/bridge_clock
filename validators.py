@@ -4,7 +4,13 @@ Separate from everything else, because they don't exist in wxGlade,  so
 kept here to avoid cluttering up the main flow.
 
 """
+# because this is a wxPython class, it uses wxWidgets C-Style function names.
+# supress the complaint throughout.
+# pylint: disable=invalid-name
+
 import wx
+
+from utils import bc_log
 
 # TODO: figure out how to trigger validators while entering.
 # LIMITS SET HERE
@@ -24,53 +30,65 @@ WARN_BREAK_LENGTH = 7  # almost never will we want a long break
 class RoundCountValidator(wx.Validator):
     """Round count: range(1, 21)"""
 
-    def __init__(self):
-        super().__init__()
-
     def Clone(self):
+        """Clone the validator.  Required by wx."""
+
         return RoundCountValidator()
 
     def TransferToWindow(self):
+        """Return False if data transfer to the window fails."""
+
         return True
 
     def TransferFromWindow(self):
+        """Return False if data transfer from the window fails."""
+
         return True
 
+    # pylint: disable=unused-argument
     def Validate(self, parent):
-        print('in round count validator')
+        """Number of rounds: int, between 1 and MAX, warn if excessive."""
+
+        bc_log('in round count validator')
         ctrl = self.GetWindow()
         try:
             count = int(ctrl.GetValue())
         except ValueError:
             wx.MessageBox('Round Count must be an integer')
             return False
-        if count in range(MIN_ROUNDS, MAX_ROUNDS+1):
-            # implement warning
-            if count > WARN_ROUNDS:
-                wx.MessageBox(f'Confirming: Your game has {count} rounds.')
-            return True
-        else:
+        if count not in range(MIN_ROUNDS, MAX_ROUNDS+1):
             wx.MessageBox(f'Please select between {MIN_ROUNDS}'
                           f' and {MAX_ROUNDS} rounds.')
             return False
+
+        # valid, see if we want to warn
+        if count > WARN_ROUNDS:
+            wx.MessageBox(f'Confirming: Your game has {count} rounds.')
+        return True
 
 
 class RoundLengthValidator(wx.Validator):
     """Round length: int"""
 
-    def __init__(self):
-        super().__init__()
-
     def Clone(self):
+        """Clone the validator.  Required by wx."""
+
         return RoundLengthValidator()
 
     def TransferToWindow(self):
+        """Return False if data transfer to the window fails."""
+
         return True
 
     def TransferFromWindow(self):
+        """Return False if data transfer from the window fails."""
+
         return True
 
+    # pylint: disable=unused-argument
     def Validate(self, parent):
+        """Round length: int, between 1 and MAX, warn if excessive."""
+
         print('in round length validator')
         ctrl = self.GetWindow()
         try:
@@ -78,38 +96,42 @@ class RoundLengthValidator(wx.Validator):
         except ValueError:
             wx.MessageBox('Round Length must be an integer')
             return False
-        if count in range(MIN_LENGTH, MAX_LENGTH+1):
-            if count > WARN_LENGTH:
-                wx.MessageBox(
-                    f'Confirming: your rounds are {count} minutes long.'
-                )
-            return True
-        else:
+        if count not in range(MIN_LENGTH, MAX_LENGTH+1):
             wx.MessageBox('Round Length must be between '
                           f'{MIN_LENGTH} and {MAX_LENGTH} minutes.')
             return False
+
+        # we're good, but check for excessive length rounds
+        if count > WARN_LENGTH:
+            wx.MessageBox(f'Confirming: your rounds are {count} minutes long.')
+        return True
 
 
 class BreakValidator(wx.Validator):
     """Breaks: blank, or int, or comma-separated ints, all in 1..rounds"""
 
-    def __init__(self):
-        super().__init__()
-
     def Clone(self):
+        """Clone the validator.  Required by wx."""
+
         return BreakValidator()
 
     def TransferToWindow(self):
+        """Return False if data transfer to the window fails."""
+
         return True
 
     def TransferFromWindow(self):
+        """Return False if data transfer from the window fails."""
+
         return True
 
     def Validate(self, parent):
-        print('in break validator')
+        """Break Rounds cs-ints, between 1 and Rounds, or blank (no breaks)."""
+
+        bc_log('in break validator')
         ctrl = self.GetWindow()
         value = ctrl.GetValue()
-        if not len(value):  # no breaks
+        if not value:  # no breaks
             return True
         try:
             breaks = [int(x) for x in value.split(',')]
@@ -130,34 +152,40 @@ class BreakValidator(wx.Validator):
 
 
 class BreakLengthValidator(wx.Validator):
-    """Round count: range(1, 21)"""
-
-    def __init__(self):
-        super().__init__()
+    """Break length: int, in minutes."""
 
     def Clone(self):
+        """Clone the validator.  Required by wx."""
+
         return BreakLengthValidator()
 
     def TransferToWindow(self):
+        """Return False if data transfer to the window fails."""
+
         return True
 
     def TransferFromWindow(self):
+        """Return False if data transfer from the window fails."""
+
         return True
 
+    # pylint: disable=unused-argument
     def Validate(self, parent):
-        print('in break length validator')
+        """Break Length int, between MIN and MAX, warn if large."""
+
+        bc_log('in break length validator')
         ctrl = self.GetWindow()
         try:
             count = int(ctrl.GetValue())
         except ValueError:
             wx.MessageBox('Break Length must be an integer.')
             return False
-        if count in range(MIN_BREAK_LENGTH, MAX_BREAK_LENGTH+1):
-            if count > WARN_BREAK_LENGTH:
-                wx.MessageBox(f'Confirming: your breaks are each {count} '
-                              'minutes long.')
-            return True
-        else:
+        if count not in range(MIN_BREAK_LENGTH, MAX_BREAK_LENGTH+1):
             wx.MessageBox(f'Break length must be between {MIN_BREAK_LENGTH}'
                           f' and {MAX_BREAK_LENGTH} minutes.')
             return False
+
+        if count > WARN_BREAK_LENGTH:
+            wx.MessageBox(f'Confirming: your breaks are each {count} '
+                          'minutes long.')
+        return True
