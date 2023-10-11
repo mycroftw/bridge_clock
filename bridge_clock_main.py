@@ -461,7 +461,17 @@ class PreferencesDialog(SetupDialog):  # pylint: disable=too-many-ancestors
 
 
 class MyApp(wx.App):
-    def OnInit(self):
+    """Run the clock."""
+
+    def OnInit(self):  # pylint: disable=invalid-name
+        """Init callback from wx.  Set stuff up and show the clock.
+
+        Because this is an "init-alike", we should ignore "attribute defined
+        outside init".
+
+        """
+
+        # pylint: disable=attribute-defined-outside-init
         self.frame = BridgeTimer(None, wx.ID_ANY, "")
         self.SetTopWindow(self.frame)
         self.frame.Show()
