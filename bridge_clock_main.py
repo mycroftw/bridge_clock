@@ -44,6 +44,7 @@ class GameSettings:
 
     def load_from_file(self, f: Path) -> None:
         """Load settings from json file."""
+
         try:
             with f.open() as fh:
                 data = json.load(fh)
@@ -460,14 +461,7 @@ class PreferencesDialog(SetupDialog):  # pylint: disable=too-many-ancestors
 
 
 class MyApp(wx.App):
-    """The Timer application."""
-
-    # pylint: disable=invalid-name
     def OnInit(self):
-        """ "Init" function for wxWidget."""
-
-        # Because this is a "init_equivalent" function:
-        # pylint: disable=attribute-defined-outside-init
         self.frame = BridgeTimer(None, wx.ID_ANY, "")
         self.SetTopWindow(self.frame)
         self.frame.Show()
