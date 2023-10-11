@@ -374,7 +374,7 @@ class MyApp(wx.App):
         super().__init__()
         self.round_timer = None
 
-    def OnInit(self):  # pylint: disable=invalid-Name
+    def OnInit(self):  # pylint: disable=invalid-name
         """Init callback from wx.  Set stuff up and show the clock."""
 
         self.round_timer = RoundTimer(None, wx.ID_ANY, "")
