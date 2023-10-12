@@ -1,68 +1,50 @@
 """Bridge Clock re-write in python"""
 import json
+import dataclasses
+from dataclasses import dataclass, InitVar
 from enum import IntEnum
 from pathlib import Path
-from typing import Tuple, Optional
+from typing import Tuple, Optional, ClassVar
 
 import wx
 
 from clock_main_frame import RoundTimer, SetupDialog
+from utils import bc_log
 import validators as vld
 
 
-DEBUG = True
-
-
+@dataclass(slots=True)
 class GameSettings:
+    """Settings for the current timer."""
 
-    # Settings that can be loaded/saved
-    ELEMENTS = (
-        'rounds', 'round_length',
-        'breaks', 'break_length', 'break_visible',
-        'sounds', 'manual_restart',
-    )
-    DEFAULT_SAVE = '_last_settings.json'
+    dict_: InitVar[Optional[dict]] = None
+    rounds: int = 9
+    round_length: int = 20
+    breaks: tuple[int] = (4,)
+    break_length: int = 5
+    break_visible: bool = False
+    sounds: bool = False
+    manual_restart: bool = False
+    load_last: InitVar[bool] = False
 
-    @classmethod
-    def settings_dict(cls) -> dict:
-        """Provide a template empty dict for settings."""
-        return {k: None for k in cls.ELEMENTS}
+    DEFAULT_SAVE: ClassVar[str] = '_last_settings.json'
 
-    def __init__(
-        self,
-        dict_: Optional[dict] = None,
-        rounds: int = 9, round_length: int = 20,
-        breaks: Tuple = (4,), break_length: int = 5,
-        break_visible: bool = False,
-        sounds: bool = False,
-        manual_restart: bool = False,
-        load_last: Optional[bool] = None,
-    ):
-        # start with defaults or user-supplied entries
-        self.rounds = rounds
-        self.round_length = round_length
-        self.breaks = breaks
-        self.break_length = break_length
-        self.break_visible = break_visible
-        self.sounds = sounds
-        self.manual_restart = manual_restart
+    def __post_init__(self, dict_, load_last):
+        """Load from database if provided or last settings if set."""
 
-        # if load_last is True, use those values instead:
-        if load_last is not None and load_last:
+        if load_last:
             self.load_from_file(Path(self.DEFAULT_SAVE))
-
-        # finally, override with dict values if given
         if dict_ is not None:
             self.update_from_dict(dict_)
 
     def _save_as_last(self) -> None:
         """Save the current settings for next time."""
+
         self.save_to_file(Path(self.DEFAULT_SAVE))
 
-    def to_dict(self) -> dict:
-        return {k: getattr(self, k) for k in self.ELEMENTS}
-
     def load_from_file(self, f: Path) -> None:
+        """Load settings from json file."""
+
         try:
             with f.open() as fh:
                 data = json.load(fh)
@@ -74,7 +56,7 @@ class GameSettings:
     def save_to_file(self, of: Path) -> None:
         """Save current settings for load later"""
 
-        data = self.to_dict()
+        data = dataclasses.asdict(self)
         try:
             with of.open('w') as ofh:
                 json.dump(data, ofh, indent=2)
@@ -85,11 +67,14 @@ class GameSettings:
         """Update from a dict of values.  Ignore each item if blank."""
 
         for k, v in new_values.items():
-            if k in self.ELEMENTS and v is not None:
-                setattr(self, k, v)
+            if v is not None:
+                try:
+                    setattr(self, k, v)
+                except AttributeError as e:  # k not in class
+                    bc_log(f'Attribute {k} not allowed in Settings: {e}')
 
     def exit(self) -> None:
-        """handle end of game"""
+        """Save last settings on exit"""
 
         self._save_as_last()
 
@@ -101,7 +86,7 @@ class StatusbarFields(IntEnum):
     CLOCK = 2
 
 
-class BridgeTimer(RoundTimer):
+class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
     """handler code goes here."""
 
     def __init__(self, *args, **kwargs):
@@ -132,36 +117,43 @@ class BridgeTimer(RoundTimer):
 
     def _pause_game(self) -> None:
         """Programmatically "press the pause button"."""
+
         self.timer.Stop()
         self.button_start.SetLabelText('Start')
         self.button_start.SetValue(False)
 
     def _round_1(self) -> None:
         """Return to round 1."""
+
         self.round = 1
         self._update_round()
 
     def _break_this_round(self) -> bool:
         """if True, go to a break after this round"""
+
         return self.round in self.settings.breaks
 
     def _update_round(self) -> None:
         """Change the round label"""
+
         self.label_round.SetLabelText(f'Round {self.round}')
         self.panel_1.Layout()
 
     def _reset_clock(self) -> None:
         """reset clock to round_time"""
+
         self.clock = wx.TimeSpan(0, min=self.settings.round_length, sec=0)
         self._update_clock()
 
     def _update_clock(self) -> None:
         """Display the current countdown clock value"""
+
         self.label_clock.SetLabelText(self.clock.Format('%M:%S'))
         self.panel_1.Layout()
 
     def _update_statusbar(self) -> None:
         """Update the values in the status bar"""
+
         self.SetStatusText(
             f"Round {self.round} of {self.settings.rounds}",
             StatusbarFields.ROUND,
@@ -187,11 +179,12 @@ class BridgeTimer(RoundTimer):
 
         I expect there will be much more logic to add here.
         """
+
         if self.round < self.settings.rounds:
-            if (not self._in_break   # don't repeat break
+            if (not self._in_break  # don't repeat break
                 and self.settings.break_visible
                     and self._break_this_round()):
-                print('Break now!')
+                bc_log('Break now!')
                 self._go_to_break()
             else:
                 self.round += 1
@@ -207,7 +200,7 @@ class BridgeTimer(RoundTimer):
                 self._update_statusbar()
                 if self.settings.manual_restart:
                     self._pause_game()
-                print('next round!')
+                bc_log('next round!')
         else:  # last round done, game over
             self._game_over()
             self.timer.Stop()
@@ -254,11 +247,11 @@ class BridgeTimer(RoundTimer):
         event.Skip()
 
     def on_menu_File_Exit(self, event) -> None:
-        self.on_close(event)
+        self.Close()
         event.Skip()
 
     def on_menu_Settings_Customize(self, event) -> None:
-        print("Event handler 'on_menu_Settings_Customize'")
+        bc_log("Event handler 'on_menu_Settings_Customize'")
         with PreferencesDialog(self) as dlg:
             dlg.load(self.settings, self._game_started)
             if dlg.ShowModal() == wx.ID_OK:
@@ -270,26 +263,26 @@ class BridgeTimer(RoundTimer):
         event.Skip()
 
     def on_menu_view_Buttons(self, event) -> None:
-        print("Event handler 'on_menu_view_Buttons' not implemented!")
+        bc_log("Event handler 'on_menu_view_Buttons' not implemented!")
         event.Skip()
 
     def on_menu_view_Statusbar(self, event) -> None:
-        print("Event handler 'on_menu_view_Statusbar' not implemented!")
+        bc_log("Event handler 'on_menu_view_Statusbar' not implemented!")
         event.Skip()
 
     def on_menu_Help_About(self, event) -> None:
-        print("Event handler 'on_menu_Help_About' not implemented!")
+        bc_log("Event handler 'on_menu_Help_About' not implemented!")
         event.Skip()
 
     def on_close(self, event) -> None:
-        print('closing!')
+        bc_log('closing!')
         if event.CanVeto() and self._game_started and not self._game_finished:
             answer = wx.MessageBox(
                 'The game is not over.  Do you really wish to close?',
                 'Game not over',
                 wx.YES_NO | wx.CANCEL | wx.ICON_WARNING,
                 self,
-                )
+            )
             if answer != wx.YES:
                 event.Veto()
                 return
@@ -302,33 +295,32 @@ class BridgeTimer(RoundTimer):
         """Scale text to fit window."""
         w, h = obj.GetSize().Get()
         tw, th = obj.GetTextExtent(scale_text).Get()
-        scale = min(h/th, w/tw)
+        scale = min(h / th, w / tw)
         old_size = obj.GetFont().GetPointSize()
         new_font = obj.GetFont().Scaled(scale)
         obj.SetFont(new_font)
-        if DEBUG:
-            print(f"old: {old_size}, scale: {scale}, "
-                  f"new: {obj.GetFont().GetPointSize()}")
+        bc_log(f"old: {old_size}, scale: {scale}, "
+               f"new: {obj.GetFont().GetPointSize()}")
 
     def on_resize(self, event) -> None:
         self._handle_resize(
             self.label_round,
             'ROUND 8' if self.settings.rounds < 10 else 'ROUND 88',
         )
-        print("Event handler 'on_resize', calling clock")
+        bc_log("Event handler 'on_resize', calling clock")
         self._handle_resize(
             self.label_clock,
             '88:88' if self.settings.round_length < 100 else '888:88',
         )
         self.panel_1.Layout()
         if self.IsMaximized():
-            print("IsMaximized")
+            bc_log("IsMaximized")
             # TODO: for some reason it doesn't register.  Try to fix.
         event.Skip()
 
     def on_button_start(self, event) -> None:
-        print("Event handler 'on_button_start', "
-              f"clicked = {self.button_start.GetValue()}")
+        bc_log("Event handler 'on_button_start', "
+               f"clicked = {self.button_start.GetValue()}")
 
         if self.button_start.GetValue():
             if self._game_finished:
@@ -360,14 +352,14 @@ class BridgeTimer(RoundTimer):
 
     def on_button_clock_minus(self, event) -> None:
         self.clock.Subtract(wx.TimeSpan.Minute())
-        if not self.clock.IsPositive():   # took last minute off clock
+        if not self.clock.IsPositive():  # took last minute off clock
             self.clock = wx.TimeSpan(0, sec=5)
         self._update_clock()
         event.Skip()
 
     def on_goto_break(self, event):  # wxGlade: RoundTimer.<event_handler>
         # TODO: Implement this
-        print("Event handler 'on_goto_break'")
+        bc_log("Event handler 'on_goto_break'")
         # fake on_resize
         self.on_resize(event)
         event.Skip()
@@ -393,18 +385,18 @@ class BridgeTimer(RoundTimer):
         """One of the timers tripped, call the appropriate reaction"""
 
         if event.Id == self.timer.GetId():
-            # print('second_tick')
+            # bc_log('second_tick')
             self.clock.Subtract(wx.TimeSpan.Second())
             self._update_clock()
             if self.clock.IsNegative():
                 self._next_round()
         else:
-            # print('minute_tick')
+            # bc_log('minute_tick')
             self._update_statusbar()  # do this for all timers
         event.Skip()
 
 
-class PreferencesDialog(SetupDialog):
+class PreferencesDialog(SetupDialog):  # pylint: disable=too-many-ancestors
     """event handling goes here."""
 
     def __init__(self, *args, **kwargs):
@@ -416,6 +408,8 @@ class PreferencesDialog(SetupDialog):
         self.text_break_length.SetValidator(vld.BreakLengthValidator())
 
     def load(self, settings: GameSettings, game_started: bool) -> None:
+        """Load Dialog with game's current settings."""
+
         self.text_round_count.ChangeValue(str(settings.rounds))
         self.text_round_length.ChangeValue(str(settings.round_length))
         self.text_break_rounds.ChangeValue(
@@ -431,6 +425,12 @@ class PreferencesDialog(SetupDialog):
             self.GetSizer().SetSizeHints(self)
 
     def get_values(self) -> Tuple[dict, bool]:
+        """Pull values from dialog.
+
+        Returns a dict containing the settings,
+            and a boolean that answers "Shall we restart the game?"
+
+        """
 
         breaks_raw = self.text_break_rounds.GetValue()
         breaks = (breaks_raw.split(',') if breaks_raw else ())
@@ -461,7 +461,17 @@ class PreferencesDialog(SetupDialog):
 
 
 class MyApp(wx.App):
-    def OnInit(self):
+    """Run the clock."""
+
+    def OnInit(self):  # pylint: disable=invalid-name
+        """Init callback from wx.  Set stuff up and show the clock.
+
+        Because this is an "init-alike", we should ignore "attribute defined
+        outside init".
+
+        """
+
+        # pylint: disable=attribute-defined-outside-init
         self.frame = BridgeTimer(None, wx.ID_ANY, "")
         self.SetTopWindow(self.frame)
         self.frame.Show()
