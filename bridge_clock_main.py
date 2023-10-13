@@ -9,7 +9,7 @@ from typing import Tuple, Optional, ClassVar
 import wx
 
 from clock_main_frame import RoundTimer, SetupDialog
-from utils import bc_log
+from utils import bc_log, BREAK_COLOUR, RUN_COLOUR
 import validators as vld
 
 
@@ -137,12 +137,19 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
         """Change the round label"""
 
         self.label_round.SetLabelText(f'Round {self.round}')
+        self.label_clock.SetBackgroundColour(RUN_COLOUR)
+        self.label_round.SetBackgroundColour(RUN_COLOUR)
         self.panel_1.Layout()
 
     def _reset_clock(self) -> None:
         """reset clock to round_time"""
 
-        self.clock = wx.TimeSpan(0, min=self.settings.round_length, sec=0)
+        mins = (
+            self.settings.break_length
+            if self._in_break
+            else self.settings.round_length
+        )
+        self.clock = wx.TimeSpan.Minutes(mins)
         self._update_clock()
 
     def _update_clock(self) -> None:
@@ -209,6 +216,8 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
         """Display a visible hospitality break, and count down."""
 
         self._in_break = True
+        self.label_clock.SetBackgroundColour(BREAK_COLOUR)
+        self.label_round.SetBackgroundColour(BREAK_COLOUR)
         self.label_round.SetLabelText('TIME TO NEXT ROUND:')
         self.clock = wx.TimeSpan.Minutes(self.settings.break_length)
         self._update_clock()
@@ -217,7 +226,9 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
         """Game is over."""
 
         self._pause_game()
-        self.label_clock.SetLabelText('Done!')
+        self.label_clock.SetLabelText('Done! ')
+        self._handle_resize(self.label_clock, 'Done! ')
+        self.panel_1.Layout()
         self._game_finished = True
 
     def on_menu_file_save(self, event) -> None:
@@ -272,6 +283,7 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
 
     def on_menu_help_about(self, event) -> None:
         bc_log("Event handler 'on_menu_help_about' not implemented!")
+        bc_log(f'round clock font: {self.label_clock.GetFont().GetFractionalPointSize()}')
         event.Skip()
 
     def on_close(self, event) -> None:
@@ -293,29 +305,28 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
     @staticmethod
     def _handle_resize(obj: wx.Control, scale_text: str) -> None:
         """Scale text to fit window."""
-        w, h = obj.GetSize().Get()
+        w, h = obj.GetSize()
         tw, th = obj.GetTextExtent(scale_text).Get()
         scale = min(h / th, w / tw)
-        old_size = obj.GetFont().GetPointSize()
         new_font = obj.GetFont().Scaled(scale)
         obj.SetFont(new_font)
-        bc_log(f"old: {old_size}, scale: {scale}, "
-               f"new: {obj.GetFont().GetPointSize()}")
 
     def on_resize(self, event) -> None:
+        # Hack to resolve sizer not autosizing with panel on maximize/unmaximize
+        self.Layout()
+        self.sizer_1.SetDimension(
+            self.panel_1.GetPosition(),
+            self.panel_1.GetSize()
+        )
         self._handle_resize(
             self.label_round,
             'ROUND 8' if self.settings.rounds < 10 else 'ROUND 88',
         )
-        bc_log("Event handler 'on_resize', calling clock")
         self._handle_resize(
             self.label_clock,
             '88:88' if self.settings.round_length < 100 else '888:88',
         )
         self.panel_1.Layout()
-        if self.IsMaximized():
-            bc_log("IsMaximized")
-            # TODO: for some reason it doesn't register.  Try to fix.
         event.Skip()
 
     def on_button_start(self, event) -> None:
