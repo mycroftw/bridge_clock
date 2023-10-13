@@ -220,7 +220,7 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
         self.label_clock.SetLabelText('Done!')
         self._game_finished = True
 
-    def on_menu_File_save(self, event) -> None:
+    def on_menu_file_save(self, event) -> None:
         dlg = wx.FileDialog(
             self,
             message='Save configuration to file',
@@ -232,7 +232,7 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
             self.settings.save_to_file(Path(pth))
         event.Skip()
 
-    def on_menu_File_Load(self, event) -> None:
+    def on_menu_file_load(self, event) -> None:
         dlg = wx.FileDialog(
             self,
             message='Load Configuration From:',
@@ -246,12 +246,12 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
                 self._initialize_game()
         event.Skip()
 
-    def on_menu_File_Exit(self, event) -> None:
+    def on_menu_file_exit(self, event) -> None:
         self.Close()
         event.Skip()
 
-    def on_menu_Settings_Customize(self, event) -> None:
-        bc_log("Event handler 'on_menu_Settings_Customize'")
+    def on_menu_settings_customize(self, event) -> None:
+        bc_log("Event handler 'on_menu_settings_customize'")
         with PreferencesDialog(self) as dlg:
             dlg.load(self.settings, self._game_started)
             if dlg.ShowModal() == wx.ID_OK:
@@ -262,16 +262,16 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
                     self._initialize_game()
         event.Skip()
 
-    def on_menu_view_Buttons(self, event) -> None:
-        bc_log("Event handler 'on_menu_view_Buttons' not implemented!")
+    def on_menu_view_buttons(self, event) -> None:
+        bc_log("Event handler 'on_menu_view_buttons' not implemented!")
         event.Skip()
 
-    def on_menu_view_Statusbar(self, event) -> None:
-        bc_log("Event handler 'on_menu_view_Statusbar' not implemented!")
+    def on_menu_view_statusbar(self, event) -> None:
+        bc_log("Event handler 'on_menu_view_statusbar' not implemented!")
         event.Skip()
 
-    def on_menu_Help_About(self, event) -> None:
-        bc_log("Event handler 'on_menu_Help_About' not implemented!")
+    def on_menu_help_about(self, event) -> None:
+        bc_log("Event handler 'on_menu_help_about' not implemented!")
         event.Skip()
 
     def on_close(self, event) -> None:
@@ -471,12 +471,11 @@ class MyApp(wx.App):
 
         """
 
-        # pylint: disable=attribute-defined-outside-init
+        # pylint: disable-next=attribute-defined-outside-init
         self.frame = BridgeTimer(None, wx.ID_ANY, "")
         self.SetTopWindow(self.frame)
         self.frame.Show()
         return True
-
 
 # end of class MyApp
 
