@@ -99,7 +99,8 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
         self.timer = wx.Timer(self)
         self.Bind(wx.EVT_TIMER, self.on_clock_tick)
 
-        self.clock = None
+        self.round_end = None  # end of round or break
+        self.time_left_on_pause = None  # if paused, time left in round or break
         self.round = 1
         self._game_started = False
         self._game_finished = False
@@ -110,15 +111,16 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
     def _initialize_game(self) -> None:
         self._game_started = False
         self._game_finished = False
-        self._pause_game()
         self._round_1()
         self._reset_clock()
+        self._pause_game()
         self._update_statusbar()
 
     def _pause_game(self) -> None:
         """Programmatically "press the pause button"."""
 
         self.timer.Stop()
+        self.time_left_on_pause = self.round_end - wx.DateTime.Now()
         self.button_start.SetLabelText('Start')
         self.button_start.SetValue(False)
 
@@ -149,13 +151,14 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
             if self._in_break
             else self.settings.round_length
         )
-        self.clock = wx.TimeSpan.Minutes(mins)
+        self.round_end = wx.DateTime.Now() + wx.TimeSpan.Minutes(mins)
         self._update_clock()
 
     def _update_clock(self) -> None:
         """Display the current countdown clock value"""
 
-        self.label_clock.SetLabelText(self.clock.Format('%M:%S'))
+        time_left = self.round_end - wx.DateTime.Now()
+        self.label_clock.SetLabelText(time_left.Format('%M:%S'))
         self.panel_1.Layout()
 
     def _update_statusbar(self) -> None:
@@ -200,7 +203,7 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
                 self._reset_clock()
                 if (not self.settings.break_visible
                         and self._break_this_round()):
-                    self.clock.Add(
+                    self.round_end.Add(
                         wx.TimeSpan.Minutes(self.settings.break_length)
                     )
                     self._update_clock()
@@ -219,7 +222,8 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
         self.label_clock.SetBackgroundColour(BREAK_COLOUR)
         self.label_round.SetBackgroundColour(BREAK_COLOUR)
         self.label_round.SetLabelText('TIME TO NEXT ROUND:')
-        self.clock = wx.TimeSpan.Minutes(self.settings.break_length)
+        self.round_end = (wx.DateTime.Now()
+                          + wx.TimeSpan.Minutes(self.settings.break_length))
         self._update_clock()
 
     def _game_over(self) -> None:
@@ -230,6 +234,7 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
         self._handle_resize(self.label_clock, 'Done! ')
         self.panel_1.Layout()
         self._game_finished = True
+        bc_log(f"End of Game, {wx.DateTime.UNow().Format('%H:%M:%S.%l')}")
 
     def on_menu_file_save(self, event) -> None:
         dlg = wx.FileDialog(
@@ -283,7 +288,6 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
 
     def on_menu_help_about(self, event) -> None:
         bc_log("Event handler 'on_menu_help_about' not implemented!")
-        bc_log(f'round clock font: {self.label_clock.GetFont().GetFractionalPointSize()}')
         event.Skip()
 
     def on_close(self, event) -> None:
@@ -299,6 +303,8 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
                 event.Veto()
                 return
 
+        self.timer.Stop()
+        self.statusbar_timer.Stop()
         self.settings.exit()
         event.Skip()
 
@@ -346,10 +352,12 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
                     self._initialize_game()
             self._game_started = True  # provide "restart" option
             self.button_start.SetLabelText('Pause')
-            self.timer.Start(1000)
+            if self.time_left_on_pause:
+                self.round_end = wx.DateTime.Now() + self.time_left_on_pause
+                self.time_left_on_pause = None
+            self.timer.Start(250)
         else:
-            self.button_start.SetLabelText('Start')
-            self.timer.Stop()
+            self._pause_game()
         event.Skip()
 
     def on_button_reset(self, event) -> None:
@@ -357,26 +365,24 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
         event.Skip()
 
     def on_button_clock_plus(self, event) -> None:
-        self.clock.Add(wx.TimeSpan.Minute())
+        self.round_end.Add(wx.TimeSpan.Minute())
         self._update_clock()
         event.Skip()
 
     def on_button_clock_minus(self, event) -> None:
-        self.clock.Subtract(wx.TimeSpan.Minute())
-        if not self.clock.IsPositive():  # took last minute off clock
-            self.clock = wx.TimeSpan(0, sec=5)
+        self.round_end.Subtract(wx.TimeSpan.Minute())
+        if self.round_end <= wx.DateTime.Now():
+            self.round_end = wx.DateTime.Now() + wx.TimeSpan(0, sec=5)
         self._update_clock()
         event.Skip()
 
     def on_goto_break(self, event):  # wxGlade: RoundTimer.<event_handler>
         # TODO: Implement this
         bc_log("Event handler 'on_goto_break'")
-        # fake on_resize
-        self.on_resize(event)
         event.Skip()
 
     def on_button_end_round(self, event) -> None:
-        self.clock = wx.TimeSpan(0, sec=2)
+        self.round_end = wx.DateTime.Now() + wx.TimeSpan(0, sec=2)
         self._update_clock()
         event.Skip()
 
@@ -397,9 +403,10 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
 
         if event.Id == self.timer.GetId():
             # bc_log('second_tick')
-            self.clock.Subtract(wx.TimeSpan.Second())
             self._update_clock()
-            if self.clock.IsNegative():
+            if self.round_end <= wx.DateTime.Now():
+                bc_log("End of Round: clock time: "
+                       f"{wx.DateTime.UNow().Format('%H:%M:%S.%l')}")
                 self._next_round()
         else:
             # bc_log('minute_tick')
