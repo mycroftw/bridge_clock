@@ -112,37 +112,37 @@ class RoundTimer(wx.Frame):
         )
         self.sizer_1.Add(self.label_clock, 8, wx.EXPAND, 0)
 
-        sizer_2 = wx.BoxSizer(wx.HORIZONTAL)
-        self.sizer_1.Add(sizer_2, 0, wx.EXPAND, 0)
+        self.sizer_2 = wx.BoxSizer(wx.HORIZONTAL)
+        self.sizer_1.Add(self.sizer_2, 0, wx.EXPAND, 0)
 
         self.button_start = wx.ToggleButton(self.panel_1, wx.ID_ANY, "Start")
         self.button_start.SetToolTip("Run or pause the clock.")
-        sizer_2.Add(self.button_start, 0, 0, 0)
+        self.sizer_2.Add(self.button_start, 0, 0, 0)
 
         self.button_reset = wx.Button(self.panel_1, wx.ID_ANY, "Reset")
         self.button_reset.SetToolTip("Reset current round to full round length.")
-        sizer_2.Add(self.button_reset, 0, 0, 0)
+        self.sizer_2.Add(self.button_reset, 0, 0, 0)
 
         self.button_clock_plus = wx.Button(self.panel_1, wx.ID_ANY, "+1 min")
-        sizer_2.Add(self.button_clock_plus, 0, 0, 0)
+        self.sizer_2.Add(self.button_clock_plus, 0, 0, 0)
 
         self.button_clock_minus = wx.Button(self.panel_1, wx.ID_ANY, "-1 min")
-        sizer_2.Add(self.button_clock_minus, 0, 0, 0)
+        self.sizer_2.Add(self.button_clock_minus, 0, 0, 0)
 
         self.button_break = wx.Button(self.panel_1, wx.ID_ANY, "Go To Break")
         self.button_break.SetToolTip("Add an unscheduled break after this round.")
-        sizer_2.Add(self.button_break, 0, 0, 0)
+        self.sizer_2.Add(self.button_break, 0, 0, 0)
 
-        sizer_2.Add((40, 0), 1, wx.ALL, 0)
+        self.sizer_2.Add((40, 0), 1, wx.ALL, 0)
 
         self.button_end_round = wx.Button(self.panel_1, wx.ID_ANY, "End Round")
-        sizer_2.Add(self.button_end_round, 0, 0, 0)
+        self.sizer_2.Add(self.button_end_round, 0, 0, 0)
 
         self.button_round_plus = wx.Button(self.panel_1, wx.ID_ANY, "+1 Round")
-        sizer_2.Add(self.button_round_plus, 0, 0, 0)
+        self.sizer_2.Add(self.button_round_plus, 0, 0, 0)
 
         self.button_round_minus = wx.Button(self.panel_1, wx.ID_ANY, "-1 Round")
-        sizer_2.Add(self.button_round_minus, 0, 0, 0)
+        self.sizer_2.Add(self.button_round_minus, 0, 0, 0)
 
         self.panel_1.SetSizer(self.sizer_1)
 
