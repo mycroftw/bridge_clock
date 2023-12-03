@@ -5,8 +5,8 @@ from dataclasses import dataclass, InitVar
 from enum import IntEnum
 from pathlib import Path
 from typing import Tuple, Optional, ClassVar
-
 import wx
+import wx.adv
 
 from clock_main_frame import RoundTimer, SetupDialog
 from utils import bc_log, BREAK_COLOUR, RUN_COLOUR
@@ -308,23 +308,17 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
 
     def on_menu_help_about(self, event) -> None:
         bc_log("showing About.")
-        wx.MessageBox(
-            """
-                                       BridgeClock v0.1
-            
-                             (C) Michael Farebrother 2023
-            
-        Available from https://github.com/mycroftw/bridge_clock
-            
-    Thanks to Rich Waugh for 20 years of his clock and the inspiration.
-            
-                "Next round, please; show players pass a board"
-            
-            """,
-            "About BridgeClock",
-            wx.OK | wx.CENTRE | wx.ICON_NONE,
+        about_info = wx.adv.AboutDialogInfo()
+        about_info.SetVersion("0.1", "Alpha release 0.1, Dec 2 2023")
+        about_info.SetName("BridgeTimer")
+        about_info.SetCopyright("(C) Michael Farebrother 2023")
+        about_info.SetDescription(
+            "\nAvailable from https://github.com/mycroftw/bridge_clock\n"
+            "Licenced under the GPL v3.\n"
+            "\nThanks to Rich Waugh for 20 years of his clock and the inspiration.\n"
+            '\n"Next round, please; show players pass a board"',
         )
-
+        wx.adv.AboutBox(about_info)
         event.Skip()
 
     def on_close(self, event) -> None:
