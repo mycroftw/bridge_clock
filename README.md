@@ -20,13 +20,19 @@ run don't have enough wifi access for me, never mind a webapp.
 So, I've written a new one.  It bears a strong resemblance to Rich Waugh's (at least for now), but with
 more of the features I want as a tournament director, and avoiding as many of the annoyances as I can.
 
-At this point, it's _very_ prerelease.  It works, but that's about all I'll vouch for.  It's two days
-mostly spent learning wxPython and wxGlade, having not written any GUI this century.  I haven't even tested the 
-timer to see how far off it is.
+At this point, it's _very_ prerelease.  It works, but that's about all I'll vouch for.  It's a few days
+mostly spent learning wxPython and wxGlade, having not written any GUI this century.  ~I haven't even tested the 
+timer to see how far off it is.~  I've tested it now, and fixed the obvious problem.  Keeps reasonably correct time,
+if you don't keep pausing it or letting the computer hibernate or...
 
-But I expect to get it to the point where I can use it shortly, and to the point where others can use it
-less shortly.  I expect the issues to pile up amazingly.
+I don't even guarantee that all the options work (I know sound doesn't).
+
+I am now actively testing it in club games, but I know where the holes are :-)
+If you're comfortable with VERY ALPHA release, go ahead and try it.
+I expect the issues to pile up amazingly.
 
 ## Requirements
 I intend to create a standalone executable at some point, but right now it requires Python (at least 3.8) and wxPython
 (Phoenix).  If you don't know how to get those, this is too alpha for you, so I'm not providing instructions (yet).
+
+Run `python .\bridge_clock_main.py` and enjoy.
