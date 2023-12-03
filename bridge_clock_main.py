@@ -417,9 +417,8 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
 
         # if we're breaking this round already, ignore
         if not self._break_this_round():
-            if self.settings.break_visible:
-                self.settings.unscheduled_breaks.append(self.round)
-            else:  # treat as "add break_length minutes now"
+            self.settings.unscheduled_breaks.append(self.round)
+            if not self.settings.break_visible:  # treat as "add break minutes to clock"
                 self.round_end.Add(wx.TimeSpan.Minutes(self.settings.break_length))
                 self._update_clock()
         event.Skip()
