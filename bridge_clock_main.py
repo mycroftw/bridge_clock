@@ -20,7 +20,8 @@ class GameSettings:
     dict_: InitVar[Optional[dict]] = None
     rounds: int = 9
     round_length: int = 20
-    breaks: tuple[int] = (4,)
+    scheduled_breaks: tuple[int] = (4,)
+    unscheduled_breaks: list[int] = dataclasses.field(default_factory=list)
     break_length: int = 5
     break_visible: bool = False
     sounds: bool = False
@@ -28,6 +29,7 @@ class GameSettings:
     load_last: InitVar[bool] = False
 
     DEFAULT_SAVE: ClassVar[str] = "_last_settings.json"
+    NO_SAVE_SETTINGS: ClassVar[tuple] = ("unscheduled_breaks",)
 
     def __post_init__(self, dict_: dict, load_last: bool) -> None:
         """Load from database if provided or last settings if set."""
@@ -36,6 +38,13 @@ class GameSettings:
             self.load_from_file(Path(self.DEFAULT_SAVE))
         if dict_ is not None:
             self.update_from_dict(dict_)
+        self.unscheduled_breaks = []
+
+    # As far as "go to break" is concerned, doesn't matter if scheduled or
+    # requested on the fly
+    @property
+    def breaks(self) -> tuple:
+        return tuple(set(list(self.scheduled_breaks) + self.unscheduled_breaks))
 
     def _save_as_last(self) -> None:
         """Save the current settings for next time."""
@@ -57,6 +66,8 @@ class GameSettings:
         """Save current settings for load later"""
 
         data = dataclasses.asdict(self)
+        for k in self.NO_SAVE_SETTINGS:
+            data.pop(k, None)
         try:
             with of.open("w") as ofh:
                 json.dump(data, ofh, indent=2)
@@ -280,15 +291,40 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
     def on_menu_view_buttons(self, event) -> None:
         """Hide or show buttons on bottom of clock."""
 
-        bc_log("Event handler 'on_menu_view_buttons' not implemented!")
+        show = not event.IsChecked()
+        self.sizer_1.Show(self.sizer_2, show=show, recursive=True)
+        self.panel_1.Layout()
         event.Skip()
 
     def on_menu_view_statusbar(self, event) -> None:
-        bc_log("Event handler 'on_menu_view_statusbar' not implemented!")
+        """Hide or show the status bar on bottom of clock."""
+
+        # TODO: currently breaks resizing (#23)
+        bar = None if event.IsChecked() else self.frame_statusbar
+        self.SetStatusBar(bar)
+        self.Layout()
+        self.panel_1.Layout()
         event.Skip()
 
     def on_menu_help_about(self, event) -> None:
-        bc_log("Event handler 'on_menu_help_about' not implemented!")
+        bc_log("showing About.")
+        wx.MessageBox(
+            """
+                                       BridgeClock v0.1
+            
+                             (C) Michael Farebrother 2023
+            
+        Available from https://github.com/mycroftw/bridge_clock
+            
+    Thanks to Rich Waugh for 20 years of his clock and the inspiration.
+            
+                "Next round, please; show players pass a board"
+            
+            """,
+            "About BridgeClock",
+            wx.OK | wx.CENTRE | wx.ICON_NONE,
+        )
+
         event.Skip()
 
     def on_close(self, event) -> None:
@@ -376,9 +412,16 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
         self._update_clock()
         event.Skip()
 
-    def on_goto_break(self, event):  # wxGlade: RoundTimer.<event_handler>
-        # TODO: Implement this
-        bc_log("Event handler 'on_goto_break'")
+    def on_goto_break(self, event):
+        """Add an unscheduled break after this round."""
+
+        # if we're breaking this round already, ignore
+        if not self._break_this_round():
+            if self.settings.break_visible:
+                self.settings.unscheduled_breaks.append(self.round)
+            else:  # treat as "add break_length minutes now"
+                self.round_end.Add(wx.TimeSpan.Minutes(self.settings.break_length))
+                self._update_clock()
         event.Skip()
 
     def on_button_end_round(self, event) -> None:
@@ -411,8 +454,9 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
                 )
                 self._next_round()
         else:
-            # bc_log('minute_tick')
-            self._update_statusbar()  # do this for all timers
+            # minute tick
+            if self.GetStatusBar():
+                self._update_statusbar()  # do this for all timers
         event.Skip()
 
 
@@ -432,7 +476,9 @@ class PreferencesDialog(SetupDialog):  # pylint: disable=too-many-ancestors
 
         self.text_round_count.ChangeValue(str(settings.rounds))
         self.text_round_length.ChangeValue(str(settings.round_length))
-        self.text_break_rounds.ChangeValue(",".join([str(x) for x in settings.breaks]))
+        self.text_break_rounds.ChangeValue(
+            ",".join([str(x) for x in settings.scheduled_breaks])
+        )
         self.text_break_length.ChangeValue(str(settings.break_length))
         self.check_invisible.SetValue(not settings.break_visible)
         self.check_manual.SetValue(settings.manual_restart)
@@ -456,7 +502,7 @@ class PreferencesDialog(SetupDialog):  # pylint: disable=too-many-ancestors
         ret = {
             "rounds": int(self.text_round_count.GetValue()),
             "round_length": int(self.text_round_length.GetValue()),
-            "breaks": tuple(int(b) for b in breaks),
+            "scheduled_breaks": tuple(int(b) for b in breaks),
             "break_length": int(self.text_break_length.GetValue()),
             "break_visible": not self.check_invisible.GetValue(),
             "manual_restart": self.check_manual.GetValue(),
