@@ -10,7 +10,7 @@ kept here to avoid cluttering up the main flow.
 
 import wx
 
-from utils import bc_log
+from utils import bc_log, ERROR_COLOUR
 
 # LIMITS SET HERE
 MIN_ROUNDS = 1
@@ -60,12 +60,10 @@ class RoundCountValidator(wx.Validator):
         try:
             count = int(value)
         except ValueError as e:
+            raise BridgeClockValidateError("Round Count must be an integer") from e
+        if count not in range(MIN_ROUNDS, MAX_ROUNDS + 1):
             raise BridgeClockValidateError(
-                'Round Count must be an integer'
-            ) from e
-        if count not in range(MIN_ROUNDS, MAX_ROUNDS+1):
-            raise BridgeClockValidateError(
-                f'Please select between {MIN_ROUNDS} and {MAX_ROUNDS} rounds.'
+                f"Please select between {MIN_ROUNDS} and {MAX_ROUNDS} rounds."
             )
 
     # pylint: disable=unused-argument
@@ -82,7 +80,7 @@ class RoundCountValidator(wx.Validator):
 
         # valid, see if we want to warn
         if int(text) > WARN_ROUNDS:
-            wx.MessageBox(f'Confirming: Your game has {text} rounds.')
+            wx.MessageBox(f"Confirming: Your game has {text.strip()} rounds.")
         return True
 
     def on_char(self, event):
@@ -95,8 +93,14 @@ class RoundCountValidator(wx.Validator):
             ctrl.SetBackgroundColour(wx.NullColour)
             ctrl.Refresh()
         except BridgeClockValidateError:
-            ctrl.SetBackgroundColour('#ff0000')
+            ctrl.SetBackgroundColour(ERROR_COLOUR)
             ctrl.Refresh()
+
+        # changing round count can invalidate the breaks list, trigger that event
+        # doing it by setting its value unchanged.
+        text_breaks = ctrl.TopLevelParent.text_break_rounds
+        text_breaks.SetValue(text_breaks.GetValue())
+
         event.Skip()
 
 
@@ -129,13 +133,10 @@ class RoundLengthValidator(wx.Validator):
         try:
             count = int(value)
         except ValueError as e:
+            raise BridgeClockValidateError("Round Length must be an integer") from e
+        if count not in range(MIN_LENGTH, MAX_LENGTH + 1):
             raise BridgeClockValidateError(
-                'Round Length must be an integer'
-            ) from e
-        if count not in range(MIN_LENGTH, MAX_LENGTH+1):
-            raise BridgeClockValidateError(
-                'Round length must be between'
-                f'{MIN_LENGTH} and {MAX_LENGTH} rounds'
+                "Round length must be between" f"{MIN_LENGTH} and {MAX_LENGTH} rounds"
             )
 
     # pylint: disable=unused-argument
@@ -153,7 +154,7 @@ class RoundLengthValidator(wx.Validator):
 
         # we're good, but check for excessive length rounds
         if int(text) > WARN_LENGTH:
-            wx.MessageBox(f'Confirming: your rounds are {text} minutes long.')
+            wx.MessageBox(f"Confirming: your rounds are {text.strip()} minutes long.")
         return True
 
     def on_char(self, event):
@@ -166,7 +167,7 @@ class RoundLengthValidator(wx.Validator):
             ctrl.SetBackgroundColour(wx.NullColour)
             ctrl.Refresh()
         except BridgeClockValidateError:
-            ctrl.SetBackgroundColour('#ff0000')
+            ctrl.SetBackgroundColour(ERROR_COLOUR)
             ctrl.Refresh()
         event.Skip()
 
@@ -202,10 +203,10 @@ class BreakValidator(wx.Validator):
             return
 
         try:
-            breaks = [int(x) for x in value.split(',')]
+            breaks = [int(x) for x in value.split(",")]
         except ValueError as e:
             raise BridgeClockValidateError(
-                'break rounds must all be integers. Separate '
+                "break rounds must all be integers. Separate "
                 "multiple break rounds with commas (e.g. '4,9')"
             ) from e
 
@@ -215,18 +216,19 @@ class BreakValidator(wx.Validator):
             # fake for validation; this will trigger validation failure in
             # Round Count, so not worrying about it
             num_rounds = 1
-        break_in_range = [break_round in range(1, num_rounds)
-                          for break_round in breaks]
+        break_in_range = [break_round in range(1, num_rounds) for break_round in breaks]
         if not all(break_in_range):
             raise BridgeClockValidateError(
-                f'Break rounds must be between round 1 and {num_rounds-1}')
+                f"Break rounds must be between round 1 and {num_rounds-1}"
+            )
 
     def Validate(self, parent):
         """Break Rounds cs-ints, between 1 and Rounds, or blank (no breaks)."""
 
-        bc_log('in break validator')
+        bc_log("in break validator")
         ctrl = self.GetWindow()
-        value = ctrl.GetValue()
+        value = ctrl.GetValue().strip()
+        ctrl.SetValue(value)
 
         try:
             self._validate(value, parent)
@@ -240,13 +242,13 @@ class BreakValidator(wx.Validator):
         """value changed, light up background if invalid."""
 
         ctrl = self.GetWindow()
-        text = ctrl.GetValue()
+        text = ctrl.GetValue().strip()
         try:
             self._validate(text, ctrl.GetParent())
             ctrl.SetBackgroundColour(wx.NullColour)
             ctrl.Refresh()
         except BridgeClockValidateError:
-            ctrl.SetBackgroundColour('#ff0000')
+            ctrl.SetBackgroundColour(ERROR_COLOUR)
             ctrl.Refresh()
         event.Skip()
 
@@ -280,20 +282,18 @@ class BreakLengthValidator(wx.Validator):
         try:
             count = int(value)
         except ValueError as e:
+            raise BridgeClockValidateError("Break Length must be an integer.") from e
+        if count not in range(MIN_BREAK_LENGTH, MAX_BREAK_LENGTH + 1):
             raise BridgeClockValidateError(
-                'Break Length must be an integer.'
-            ) from e
-        if count not in range(MIN_BREAK_LENGTH, MAX_BREAK_LENGTH+1):
-            raise BridgeClockValidateError(
-                f'Break length must be between {MIN_BREAK_LENGTH}'
-                f' and {MAX_BREAK_LENGTH} minutes.'
+                f"Break length must be between {MIN_BREAK_LENGTH}"
+                f" and {MAX_BREAK_LENGTH} minutes."
             )
 
     # pylint: disable=unused-argument
     def Validate(self, parent):
         """Break Length int, between MIN and MAX, warn if large."""
 
-        bc_log('in break length validator')
+        bc_log("in break length validator")
         ctrl = self.GetWindow()
         text = ctrl.GetValue()
         try:
@@ -303,8 +303,9 @@ class BreakLengthValidator(wx.Validator):
             return False
 
         if int(text) > WARN_BREAK_LENGTH:
-            wx.MessageBox(f'Confirming: your breaks are each {text} '
-                          'minutes long.')
+            wx.MessageBox(
+                f"Confirming: your breaks are each {text.strip()} minutes long."
+            )
         return True
 
     def on_char(self, event):
@@ -317,6 +318,6 @@ class BreakLengthValidator(wx.Validator):
             ctrl.SetBackgroundColour(wx.NullColour)
             ctrl.Refresh()
         except BridgeClockValidateError:
-            ctrl.SetBackgroundColour('#ff0000')
+            ctrl.SetBackgroundColour(ERROR_COLOUR)
             ctrl.Refresh()
         event.Skip()
