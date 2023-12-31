@@ -316,7 +316,7 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
             "\nAvailable from https://github.com/mycroftw/bridge_clock\n"
             "Licenced under the GPL v3.\n"
             "\nThanks to Rich Waugh for 20 years of his clock and the inspiration.\n"
-            '\n"Next round, please; show players pass a board"',
+            '\n"Next round, please; slow players pass a board"',
         )
         wx.adv.AboutBox(about_info)
         event.Skip()
