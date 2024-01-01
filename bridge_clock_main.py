@@ -1,16 +1,17 @@
 """Bridge Clock re-write in python"""
-import json
 import dataclasses
+import json
 from dataclasses import dataclass, InitVar
 from enum import IntEnum
 from pathlib import Path
 from typing import Tuple, Optional, ClassVar
+
 import wx
 import wx.adv
 
+import validators as vld
 from clock_main_frame import RoundTimer, SetupDialog
 from utils import bc_log, BREAK_COLOUR, RUN_COLOUR
-import validators as vld
 
 
 @dataclass(slots=True)
@@ -300,8 +301,8 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
         """Hide or show the status bar on bottom of clock."""
 
         # TODO: currently breaks resizing (#23)
-        bar = None if event.IsChecked() else self.frame_statusbar
-        self.SetStatusBar(bar)
+        statusbar = None if event.IsChecked() else self.frame_statusbar
+        self.SetStatusBar(statusbar)
         self.Layout()
         self.panel_1.Layout()
         event.Skip()
