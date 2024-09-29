@@ -1,4 +1,5 @@
 """Bridge Clock re-write in python"""
+
 import dataclasses
 import json
 from dataclasses import dataclass, InitVar
@@ -112,6 +113,9 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
         self.timer = wx.Timer(self)
         self.Bind(wx.EVT_TIMER, self.on_clock_tick)
 
+        self.context_menu_items = []
+        self._create_context_menu()
+
         self.round_end = None  # end of round or break
         self.time_left_on_pause = None  # if paused, time left in round or break
         self.round = 1
@@ -120,6 +124,20 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
         self._in_break = False  # only True when in visible break
 
         self._initialize_game()
+
+    def _create_context_menu(self) -> None:
+        """Create and bind the context menu items.  Not in wxGlade."""
+
+        self.context_menu = wx.Menu()
+        item = self.context_menu.Append(wx.ID_ANY, "Start", "")
+        self.Bind(wx.EVT_MENU, self.on_button_start, item, self.button_start)
+        item = self.context_menu.Append(wx.ID_ANY, "+1 min", "")
+        self.Bind(wx.EVT_MENU, self.on_button_clock_plus, item, self.button_clock_plus)
+        item = self.context_menu.Append(wx.ID_ANY, "Next Round", "")
+        self.Bind(wx.EVT_MENU, self.on_button_end_round, item, self.button_end_round)
+        item = self.context_menu.Append(wx.ID_ANY, "Settings", "")
+        self.Bind(wx.EVT_MENU, self.on_menu_settings_customize, item)
+        self.Bind(wx.EVT_CONTEXT_MENU, self.on_context_menu)
 
     def _initialize_game(self) -> None:
         self._game_started = False
@@ -321,6 +339,14 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
         )
         wx.adv.AboutBox(about_info)
         event.Skip()
+
+    def on_context_menu(self, event: wx.ContextMenuEvent) -> None:
+        pos = event.GetPosition()
+        bc_log(f"context menu requested at {pos}, {self.ScreenToClient(pos)}")
+        # TODO: Hancle default position better
+        point = (100, 100) if pos == wx.DefaultPosition else self.ScreenToClient(pos)
+
+        self.PopupMenu(self.context_menu, point)
 
     def on_close(self, event) -> None:
         bc_log("closing!")
