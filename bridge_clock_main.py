@@ -114,6 +114,8 @@ class Accelerator:
     text: str
     keycode: int
     flags: int = wx.ACCEL_NORMAL
+    make_menu_item: bool = True
+    make_keycode: bool = True
 
 
 class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
@@ -126,13 +128,17 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
 
             return (
                 Accelerator(
-                    self.button_start, self.fire_button_start, "Start", ord(" ")
+                    self.button_start,
+                    self.fire_button_start,
+                    "Start/Pause",
+                    ord("s"),
                 ),
                 Accelerator(
                     self.button_clock_plus,
                     self.on_button_clock_plus,
                     "+1 minute",
-                    ord("+"),
+                    ord("="),
+                    flags=wx.ACCEL_SHIFT,  # Shift-= is the "+" key
                 ),
                 Accelerator(
                     self.button_clock_minus,
@@ -144,15 +150,31 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
                     self.button_end_round,
                     self.on_button_end_round,
                     "End Round",
-                    ord("r"),
-                    flags=wx.ACCEL_NORMAL | wx.ACCEL_SHIFT,
+                    ord("R"),
+                    flags=wx.ACCEL_NORMAL,
+                ),
+                Accelerator(
+                    self.button_end_round,
+                    self.on_button_end_round,
+                    "",
+                    ord("R"),
+                    flags=wx.ACCEL_SHIFT,
+                    make_menu_item=False,
                 ),
                 Accelerator(
                     self.button_break,
                     self.on_goto_break,
                     "Go To Break",
                     ord("B"),
-                    flags=wx.ACCEL_NORMAL | wx.ACCEL_SHIFT,
+                    flags=wx.ACCEL_NORMAL,
+                ),
+                Accelerator(
+                    self.button_break,
+                    self.on_goto_break,
+                    "Go To Break",
+                    ord("B"),
+                    flags=wx.ACCEL_SHIFT,
+                    make_menu_item=False,
                 ),
             )
 
@@ -166,6 +188,7 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
         self.Bind(wx.EVT_TIMER, self.on_clock_tick)
 
         self.accelerators = _get_accelerators()
+        self._context_menu_start = None  # special: the "start/pause" context menu item
         self._create_shortcuts()
 
         self.round_end = None  # end of round or break
@@ -184,15 +207,20 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
         entries = []
 
         for accelerator in self.accelerators:
-            item = self.context_menu.Append(wx.ID_ANY, accelerator.text, "")
-            self.Bind(wx.EVT_MENU, accelerator.cmd, item, accelerator.source)
-            entries.append(
-                wx.AcceleratorEntry(
-                    int(accelerator.flags),
-                    accelerator.keycode,
-                    accelerator.source.GetId(),
+            if accelerator.make_menu_item:
+                item = self.context_menu.Append(wx.ID_ANY, accelerator.text, "")
+                self.Bind(wx.EVT_MENU, accelerator.cmd, item, accelerator.source)
+                # special case: start button, store for label change
+                if accelerator.source == self.button_start:
+                    self._context_menu_start = item
+            if accelerator.make_keycode:
+                entries.append(
+                    wx.AcceleratorEntry(
+                        accelerator.flags,
+                        accelerator.keycode,
+                        accelerator.source.GetId(),
+                    )
                 )
-            )
 
         self.Bind(wx.EVT_CONTEXT_MENU, self.on_context_menu)
         accelerator_table = wx.AcceleratorTable(entries)
@@ -402,13 +430,14 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
         event.Skip()
 
     def on_context_menu(self, event: wx.ContextMenuEvent) -> None:
+        """right click, bring up context menu."""
+
         pos = event.GetPosition()
         bc_log(f"context menu requested at {pos}, {self.ScreenToClient(pos)}")
-        # TODO: Handle default position better
-        point = (100, 100) if pos == wx.DefaultPosition else self.ScreenToClient(pos)
+        point = (50, 50) if pos == wx.DefaultPosition else self.ScreenToClient(pos)
 
         # special: set the value of "Start" menu item to the value of the togglebutton
-
+        self._context_menu_start.SetItemLabel(self.button_start.GetLabelText())
         self.PopupMenu(self.context_menu, point)
 
     def on_close(self, event) -> None:
