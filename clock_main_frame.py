@@ -266,7 +266,7 @@ class SetupDialog(wx.Dialog):  # pylint: disable=too-few-public-methods
     """
 
     # pylint: disable=too-many-locals, too-many-statements
-    def __init__(self, *args, **kwds):  # pylint: disable=too-many-locals
+    def __init__(self, *args, **kwds):
         # begin wxGlade: SetupDialog.__init__
         kwds["style"] = kwds.get("style", 0) | wx.DEFAULT_DIALOG_STYLE
         wx.Dialog.__init__(self, *args, **kwds)
