@@ -493,6 +493,7 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
             wx.EVT_TOGGLEBUTTON.typeId, self.button_start.GetId()
         )
         wx.PostEvent(self.button_start.GetEventHandler(), toggle_event)
+        event.Skip()
 
     def on_button_start(self, event) -> None:
         bc_log(
