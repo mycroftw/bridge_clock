@@ -131,3 +131,10 @@ dmypy.json
 # temp files
 *.json
 *.wxg.bak
+*.py.bak
+
+# config
+.idea/sonarlint
+/bridge_clock_main.build/
+/bridge_clock_main.dist/
+/bridge_clock_main.onefile-build/

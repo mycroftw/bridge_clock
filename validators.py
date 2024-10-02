@@ -4,13 +4,14 @@ Separate from everything else, because they don't exist in wxGlade,  so
 kept here to avoid cluttering up the main flow.
 
 """
+
 # because this is a wxPython class, it uses wxWidgets C-Style function names.
 # supress the complaint throughout.
 # pylint: disable=invalid-name
 
 import wx
 
-from utils import bc_log, ERROR_COLOUR
+from utils import ERROR_COLOUR, bc_log
 
 # LIMITS SET HERE
 MIN_ROUNDS = 1

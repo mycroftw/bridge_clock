@@ -2,17 +2,17 @@
 
 import dataclasses
 import json
-from dataclasses import dataclass, InitVar
+from dataclasses import InitVar, dataclass
 from enum import IntEnum
 from pathlib import Path
-from typing import Tuple, ClassVar, Callable
+from typing import Callable, ClassVar, Tuple
 
 import wx
 import wx.adv
 
 import validators as vld
 from clock_main_frame import RoundTimer, SetupDialog
-from utils import bc_log, BREAK_COLOUR, RUN_COLOUR
+from utils import BREAK_COLOUR, RUN_COLOUR, bc_log
 
 
 @dataclass(slots=True)
@@ -355,6 +355,8 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
         bc_log(f"End of Game, {wx.DateTime.UNow().Format('%H:%M:%S.%l')}")
 
     def on_menu_file_save(self, event) -> None:
+        """Save configuration for future use."""
+
         dlg = wx.FileDialog(
             self,
             message="Save configuration to file",
@@ -367,6 +369,8 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
         event.Skip()
 
     def on_menu_file_load(self, event) -> None:
+        """Load configuration from file."""
+
         dlg = wx.FileDialog(
             self,
             message="Load Configuration From:",
@@ -381,10 +385,14 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
         event.Skip()
 
     def on_menu_file_exit(self, event) -> None:
+        """Exit the application from the File menu."""
+
         self.Close()
         event.Skip()
 
     def on_menu_settings_customize(self, event) -> None:
+        """Bring up the settings box."""
+
         bc_log("Event handler 'on_menu_settings_customize'")
         with PreferencesDialog(self) as dlg:
             dlg.load(self.settings, self._game_started)
@@ -415,6 +423,8 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
         event.Skip()
 
     def on_menu_help_about(self, event) -> None:
+        """Show the About box."""
+
         bc_log("showing About.")
         about_info = wx.adv.AboutDialogInfo()
         about_info.SetVersion("0.1", "Alpha release 0.1, Dec 2 2023")
@@ -430,7 +440,7 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
         event.Skip()
 
     def on_context_menu(self, event: wx.ContextMenuEvent) -> None:
-        """right click, bring up context menu."""
+        """Right click, bring up context menu."""
 
         pos = event.GetPosition()
         bc_log(f"context menu requested at {pos}, {self.ScreenToClient(pos)}")
@@ -441,6 +451,8 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
         self.PopupMenu(self.context_menu, point)
 
     def on_close(self, event) -> None:
+        """Application has been asked to close. Warn if game is still running."""
+
         bc_log("closing!")
         if event.CanVeto() and self._game_started and not self._game_finished:
             answer = wx.MessageBox(
@@ -468,7 +480,8 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
         obj.SetFont(new_font)
 
     def on_resize(self, event) -> None:
-        # Hack to resolve sizer not auto-sizing with panel on maximize/unmaximize
+        """Hack to resolve sizer not auto-sizing with panel on maximize/unmaximize."""
+
         self.Layout()
         self.sizer_1.SetDimension(self.panel_1.GetPosition(), self.panel_1.GetSize())
         self._handle_resize(
@@ -496,6 +509,8 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
         event.Skip()
 
     def on_button_start(self, event) -> None:
+        """Start/Pause button has been pressed."""
+
         bc_log(
             "Event handler 'on_button_start', "
             f"clicked = {self.button_start.GetValue()}"
@@ -523,15 +538,21 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
         event.Skip()
 
     def on_button_reset(self, event) -> None:
+        """Reset game button handler."""
+
         self._reset_clock()
         event.Skip()
 
     def on_button_clock_plus(self, event) -> None:
+        """+1 minute button pressed."""
+
         self.round_end.Add(wx.TimeSpan.Minute())
         self._update_clock()
         event.Skip()
 
     def on_button_clock_minus(self, event) -> None:
+        """-1 minute button pressed."""
+
         self.round_end.Subtract(wx.TimeSpan.Minute())
         if self.round_end <= wx.DateTime.Now():
             self.round_end = wx.DateTime.Now() + wx.TimeSpan(0, sec=5)
@@ -550,17 +571,23 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
         event.Skip()
 
     def on_button_end_round(self, event) -> None:
+        """End the round now."""
+
         self.round_end = wx.DateTime.Now() + wx.TimeSpan(0, sec=2)
         self._update_clock()
         event.Skip()
 
     def on_button_round_plus(self, event) -> None:
+        """+1 Round pressed.  Note this doesn't change the clock."""
+
         if self.round < self.settings.rounds:
             self.round += 1
             self._update_round()
         event.Skip()
 
     def on_button_round_minus(self, event) -> None:
+        """-1 Round pressed.  Note this doesn't change the clock."""
+
         if self.round > 1:
             self.round -= 1
             self._update_round()
@@ -569,7 +596,7 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
     def on_clock_tick(self, event) -> None:
         """One of the timers tripped, call the appropriate reaction"""
 
-        if event.Id == self.timer.GetId():
+        if event.Id == self.timer.GetId():  # 250ms tick
             # bc_log('second_tick')
             self._update_clock()
             if self.round_end <= wx.DateTime.Now():
@@ -578,7 +605,7 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
                     f"{wx.DateTime.UNow().Format('%H:%M:%S.%l')}"
                 )
                 self._next_round()
-        # otherwise it's the minute tick
+        # otherwise it's the minute tick, update the status bar.
         elif self.GetStatusBar():
             self._update_statusbar()  # do this for all timers
         event.Skip()
