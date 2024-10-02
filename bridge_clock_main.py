@@ -2,17 +2,17 @@
 
 import dataclasses
 import json
-from dataclasses import dataclass, InitVar
+from dataclasses import InitVar, dataclass
 from enum import IntEnum
 from pathlib import Path
-from typing import Tuple, ClassVar, Callable
+from typing import Callable, ClassVar, Tuple
 
 import wx
 import wx.adv
 
 import validators as vld
 from clock_main_frame import RoundTimer, SetupDialog
-from utils import bc_log, BREAK_COLOUR, RUN_COLOUR
+from utils import BREAK_COLOUR, RUN_COLOUR, bc_log
 
 
 @dataclass(slots=True)
