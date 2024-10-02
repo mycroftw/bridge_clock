@@ -1,10 +1,11 @@
 """Bridge Clock re-write in python"""
+
 import dataclasses
 import json
 from dataclasses import dataclass, InitVar
 from enum import IntEnum
 from pathlib import Path
-from typing import Tuple, Optional, ClassVar
+from typing import Tuple, ClassVar, Callable
 
 import wx
 import wx.adv
@@ -18,7 +19,7 @@ from utils import bc_log, BREAK_COLOUR, RUN_COLOUR
 class GameSettings:
     """Settings for the current timer."""
 
-    dict_: InitVar[Optional[dict]] = None
+    dict_: InitVar[dict | None] = None
     rounds: int = 9
     round_length: int = 20
     scheduled_breaks: tuple[int] = (4,)
@@ -45,6 +46,11 @@ class GameSettings:
     # requested on the fly
     @property
     def breaks(self) -> tuple:
+        """Which rounds have breaks after.
+
+        Includes scheduled breaks or ones manually selected with "go to break" button.
+        """
+
         return tuple(set(list(self.scheduled_breaks) + self.unscheduled_breaks))
 
     def _save_as_last(self) -> None:
@@ -99,10 +105,79 @@ class StatusbarFields(IntEnum):
     CLOCK = 2
 
 
+@dataclass
+class Accelerator:
+    """Information for an accelerator/context menu item."""
+
+    source: wx.Control
+    cmd: Callable
+    text: str
+    keycode: int
+    flags: int = wx.ACCEL_NORMAL
+    make_menu_item: bool = True
+    make_keycode: bool = True
+
+
 class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
     """handler code goes here."""
 
     def __init__(self, *args, **kwargs):
+
+        def _get_accelerators() -> tuple[Accelerator, ...]:
+            """Put the accelerators in a space they can be found, out of main init."""
+
+            return (
+                Accelerator(
+                    self.button_start,
+                    self.fire_button_start,
+                    "Start/Pause",
+                    ord("s"),
+                ),
+                Accelerator(
+                    self.button_clock_plus,
+                    self.on_button_clock_plus,
+                    "+1 minute",
+                    ord("="),
+                    flags=wx.ACCEL_SHIFT,  # Shift-= is the "+" key
+                ),
+                Accelerator(
+                    self.button_clock_minus,
+                    self.on_button_clock_minus,
+                    "-1 minute",
+                    ord("-"),
+                ),
+                Accelerator(
+                    self.button_end_round,
+                    self.on_button_end_round,
+                    "End Round",
+                    ord("R"),
+                    flags=wx.ACCEL_NORMAL,
+                ),
+                Accelerator(
+                    self.button_end_round,
+                    self.on_button_end_round,
+                    "",
+                    ord("R"),
+                    flags=wx.ACCEL_SHIFT,
+                    make_menu_item=False,
+                ),
+                Accelerator(
+                    self.button_break,
+                    self.on_goto_break,
+                    "Go To Break",
+                    ord("B"),
+                    flags=wx.ACCEL_NORMAL,
+                ),
+                Accelerator(
+                    self.button_break,
+                    self.on_goto_break,
+                    "Go To Break",
+                    ord("B"),
+                    flags=wx.ACCEL_SHIFT,
+                    make_menu_item=False,
+                ),
+            )
+
         super().__init__(*args, **kwargs)
         self.settings = GameSettings(load_last=True)
         # wxGlade doesn't do timers.  One every second to run the timer,
@@ -111,6 +186,10 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
         self.statusbar_timer.Start(60000)
         self.timer = wx.Timer(self)
         self.Bind(wx.EVT_TIMER, self.on_clock_tick)
+
+        self.accelerators = _get_accelerators()
+        self._context_menu_start = None  # special: the "start/pause" context menu item
+        self._create_shortcuts()
 
         self.round_end = None  # end of round or break
         self.time_left_on_pause = None  # if paused, time left in round or break
@@ -121,7 +200,35 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
 
         self._initialize_game()
 
+    def _create_shortcuts(self) -> None:
+        """Create and bind the context menu items.  Not in wxGlade."""
+
+        self.context_menu = wx.Menu()
+        entries = []
+
+        for accelerator in self.accelerators:
+            if accelerator.make_menu_item:
+                item = self.context_menu.Append(wx.ID_ANY, accelerator.text, "")
+                self.Bind(wx.EVT_MENU, accelerator.cmd, item, accelerator.source)
+                # special case: start button, store for label change
+                if accelerator.source == self.button_start:
+                    self._context_menu_start = item
+            if accelerator.make_keycode:
+                entries.append(
+                    wx.AcceleratorEntry(
+                        accelerator.flags,
+                        accelerator.keycode,
+                        accelerator.source.GetId(),
+                    )
+                )
+
+        self.Bind(wx.EVT_CONTEXT_MENU, self.on_context_menu)
+        accelerator_table = wx.AcceleratorTable(entries)
+        self.SetAcceleratorTable(accelerator_table)
+
     def _initialize_game(self) -> None:
+        """Put clock in "game ready to start" mode."""
+
         self._game_started = False
         self._game_finished = False
         self._round_1()
@@ -159,10 +266,10 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
     def _reset_clock(self) -> None:
         """reset clock to round_time"""
 
-        mins = (
+        minutes = (
             self.settings.break_length if self._in_break else self.settings.round_length
         )
-        self.round_end = wx.DateTime.Now() + wx.TimeSpan.Minutes(mins)
+        self.round_end = wx.DateTime.Now() + wx.TimeSpan.Minutes(minutes)
         self._update_clock()
 
     def _update_clock(self) -> None:
@@ -322,6 +429,17 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
         wx.adv.AboutBox(about_info)
         event.Skip()
 
+    def on_context_menu(self, event: wx.ContextMenuEvent) -> None:
+        """right click, bring up context menu."""
+
+        pos = event.GetPosition()
+        bc_log(f"context menu requested at {pos}, {self.ScreenToClient(pos)}")
+        point = (50, 50) if pos == wx.DefaultPosition else self.ScreenToClient(pos)
+
+        # special: set the value of "Start" menu item to the value of the togglebutton
+        self._context_menu_start.SetItemLabel(self.button_start.GetLabelText())
+        self.PopupMenu(self.context_menu, point)
+
     def on_close(self, event) -> None:
         bc_log("closing!")
         if event.CanVeto() and self._game_started and not self._game_finished:
@@ -350,7 +468,7 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
         obj.SetFont(new_font)
 
     def on_resize(self, event) -> None:
-        # Hack to resolve sizer not autosizing with panel on maximize/unmaximize
+        # Hack to resolve sizer not auto-sizing with panel on maximize/unmaximize
         self.Layout()
         self.sizer_1.SetDimension(self.panel_1.GetPosition(), self.panel_1.GetSize())
         self._handle_resize(
@@ -362,6 +480,19 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
             "88:88" if self.settings.round_length < 100 else "888:88",
         )
         self.panel_1.Layout()
+        event.Skip()
+
+    def fire_button_start(self, event) -> None:
+        """Convert a menu or keyboard "Start/pause" trigger to togglebutton event."""
+
+        bc_log("toggle start/pause from popupmenu or space key")
+        # manually toggle button (wx.EVT_TOGGLEBUTTON does not do this)
+        self.button_start.SetValue(not self.button_start.GetValue())
+
+        toggle_event = wx.CommandEvent(
+            wx.EVT_TOGGLEBUTTON.typeId, self.button_start.GetId()
+        )
+        wx.PostEvent(self.button_start.GetEventHandler(), toggle_event)
         event.Skip()
 
     def on_button_start(self, event) -> None:
@@ -447,10 +578,9 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
                     f"{wx.DateTime.UNow().Format('%H:%M:%S.%l')}"
                 )
                 self._next_round()
-        else:
-            # minute tick
-            if self.GetStatusBar():
-                self._update_statusbar()  # do this for all timers
+        # otherwise it's the minute tick
+        elif self.GetStatusBar():
+            self._update_statusbar()  # do this for all timers
         event.Skip()
 
 
