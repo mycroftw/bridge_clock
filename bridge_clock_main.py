@@ -294,6 +294,7 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
             else:
                 self.round += 1
                 self._in_break = False
+                self.button_end_round.SetLabel("End Round")
                 self._update_round()
                 self._reset_clock()
                 if not self.settings.break_visible and self._break_this_round():
@@ -312,10 +313,11 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
         self._in_break = True
         self.label_clock.SetBackgroundColour(BREAK_COLOUR)
         self.label_round.SetBackgroundColour(BREAK_COLOUR)
-        self.label_round.SetLabelText("TIME TO NEXT ROUND:")
+        self.label_round.SetLabelText("NEXT ROUND IN:")
         self.round_end = wx.DateTime.Now() + wx.TimeSpan.Minutes(
             self.settings.break_length
         )
+        self.button_end_round.SetLabel("End Break")
         self._update_clock()
 
     def _game_over(self) -> None:
@@ -445,10 +447,7 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
         """Hack to resolve sizer not auto-sizing with panel on maximize/unmaximize."""
         self.Layout()
         self.sizer_1.SetDimension(self.panel_1.GetPosition(), self.panel_1.GetSize())
-        self._handle_resize(
-            self.label_round,
-            "ROUND 8" if self.settings.rounds < 10 else "ROUND 88",
-        )
+        self._handle_resize(self.label_round, "NEXT ROUND IN:")
         self._handle_resize(
             self.label_clock,
             "88:88" if self.settings.round_length < 100 else "888:88",
@@ -523,6 +522,16 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
             if not self.settings.break_visible:  # treat as "add break minutes to clock"
                 self.round_end.Add(wx.TimeSpan.Minutes(self.settings.break_length))
                 self._update_clock()
+        else:
+            dlg = wx.GenericProgressDialog(
+                "",
+                "Break already scheduled for this round.",
+                style=wx.PD_AUTO_HIDE,
+            )
+            dlg.SetPosition(  # show above "go to break" button)
+                self.button_break.GetScreenPosition() - (0, dlg.GetSize().GetHeight())
+            )
+            wx.CallLater(500, dlg.Update, 100)
         event.Skip()
 
     def on_button_end_round(self, event) -> None:
