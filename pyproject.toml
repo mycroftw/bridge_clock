@@ -20,3 +20,4 @@ exclude = 'wxglade_out.py'
 [tool.isort]
 profile = "black"
 multi_line_output = 3
+skip_gitignore = true
