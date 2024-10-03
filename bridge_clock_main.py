@@ -2,7 +2,6 @@
 
 import dataclasses
 import json
-from dataclasses import InitVar, dataclass
 from enum import IntEnum
 from pathlib import Path
 from typing import Callable, ClassVar, Tuple
@@ -15,11 +14,11 @@ from clock_main_frame import RoundTimer, SetupDialog
 from utils import BREAK_COLOUR, RUN_COLOUR, bc_log
 
 
-@dataclass(slots=True)
+@dataclasses.dataclass(slots=True)
 class GameSettings:
     """Settings for the current timer."""
 
-    dict_: InitVar[dict | None] = None
+    dict_: dataclasses.InitVar[dict | None] = None
     rounds: int = 9
     round_length: int = 20
     scheduled_breaks: tuple[int] = (4,)
@@ -28,22 +27,21 @@ class GameSettings:
     break_visible: bool = False
     sounds: bool = False
     manual_restart: bool = False
-    load_last: InitVar[bool] = False
+    load_last: dataclasses.InitVar[bool] = False
 
-    DEFAULT_SAVE: ClassVar[str] = "_last_settings.json"
+    DEFAULT_SAVE: ClassVar[Path] = Path("_last_settings.json")
     NO_SAVE_SETTINGS: ClassVar[tuple] = ("unscheduled_breaks",)
 
     def __post_init__(self, dict_: dict, load_last: bool) -> None:
         """Load from database if provided or last settings if set."""
-
         if load_last:
-            self.load_from_file(Path(self.DEFAULT_SAVE))
+            self.load_from_file(self.DEFAULT_SAVE)
         if dict_ is not None:
             self.update_from_dict(dict_)
         self.unscheduled_breaks = []
 
-    # As far as "go to break" is concerned, doesn't matter if scheduled or
-    # requested on the fly
+    # As far as "go to break" is concerned,
+    # doesn't matter if scheduled or requested on the fly
     @property
     def breaks(self) -> tuple:
         """Which rounds have breaks after.
@@ -51,27 +49,24 @@ class GameSettings:
         Includes scheduled breaks or ones manually selected with "go to break" button.
         """
 
-        return tuple(set(list(self.scheduled_breaks) + self.unscheduled_breaks))
+        return tuple(set(self.scheduled_breaks).union(self.unscheduled_breaks))
 
     def _save_as_last(self) -> None:
         """Save the current settings for next time."""
-
-        self.save_to_file(Path(self.DEFAULT_SAVE))
+        self.save_to_file(self.DEFAULT_SAVE)
 
     def load_from_file(self, f: Path) -> None:
         """Load settings from json file."""
-
         try:
             with f.open() as fh:
                 data = json.load(fh)
             self.update_from_dict(data)
         except (OSError, json.JSONDecodeError) as e:
-            if str(f) != self.DEFAULT_SAVE:  # last settings may not exist
+            if f != self.DEFAULT_SAVE:  # last settings may not exist
                 print(f"Failure to load data!: {e}")
 
     def save_to_file(self, of: Path) -> None:
         """Save current settings for load later"""
-
         data = dataclasses.asdict(self)
         for k in self.NO_SAVE_SETTINGS:
             data.pop(k, None)
@@ -83,17 +78,15 @@ class GameSettings:
 
     def update_from_dict(self, new_values: dict) -> None:
         """Update from a dict of values.  Ignore each item if blank."""
-
         for k, v in new_values.items():
             if v is not None:
-                try:
+                if hasattr(self, k):
                     setattr(self, k, v)
-                except AttributeError as e:  # k not in class
-                    bc_log(f"Attribute {k} not allowed in Settings: {e}")
+                else:
+                    bc_log(f"Attribute {k} not allowed in Settings")
 
     def exit(self) -> None:
         """Save last settings on exit"""
-
         self._save_as_last()
 
 
@@ -105,7 +98,7 @@ class StatusbarFields(IntEnum):
     CLOCK = 2
 
 
-@dataclass
+@dataclasses.dataclass(slots=True)
 class Accelerator:
     """Information for an accelerator/context menu item."""
 
@@ -119,78 +112,28 @@ class Accelerator:
 
 
 class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
-    """handler code goes here."""
+    """The timer itself.
+
+    Most of the functions are event handlers.  Internal functions do clock logic.
+    """
 
     def __init__(self, *args, **kwargs):
-
-        def _get_accelerators() -> tuple[Accelerator, ...]:
-            """Put the accelerators in a space they can be found, out of main init."""
-
-            return (
-                Accelerator(
-                    self.button_start,
-                    self.fire_button_start,
-                    "Start/Pause",
-                    ord("s"),
-                ),
-                Accelerator(
-                    self.button_clock_plus,
-                    self.on_button_clock_plus,
-                    "+1 minute",
-                    ord("="),
-                    flags=wx.ACCEL_SHIFT,  # Shift-= is the "+" key
-                ),
-                Accelerator(
-                    self.button_clock_minus,
-                    self.on_button_clock_minus,
-                    "-1 minute",
-                    ord("-"),
-                ),
-                Accelerator(
-                    self.button_end_round,
-                    self.on_button_end_round,
-                    "End Round",
-                    ord("R"),
-                    flags=wx.ACCEL_NORMAL,
-                ),
-                Accelerator(
-                    self.button_end_round,
-                    self.on_button_end_round,
-                    "",
-                    ord("R"),
-                    flags=wx.ACCEL_SHIFT,
-                    make_menu_item=False,
-                ),
-                Accelerator(
-                    self.button_break,
-                    self.on_goto_break,
-                    "Go To Break",
-                    ord("B"),
-                    flags=wx.ACCEL_NORMAL,
-                ),
-                Accelerator(
-                    self.button_break,
-                    self.on_goto_break,
-                    "Go To Break",
-                    ord("B"),
-                    flags=wx.ACCEL_SHIFT,
-                    make_menu_item=False,
-                ),
-            )
-
         super().__init__(*args, **kwargs)
         self.settings = GameSettings(load_last=True)
-        # wxGlade doesn't do timers.  One every second to run the timer,
+
+        # Add timers.  One every second to run the timer,
         # one every minute to update the wall clock on the statusbar.
         self.statusbar_timer = wx.Timer(self)
         self.statusbar_timer.Start(60000)
         self.timer = wx.Timer(self)
         self.Bind(wx.EVT_TIMER, self.on_clock_tick)
 
-        self.accelerators = _get_accelerators()
+        # Add context menu and shortcut keys
+        self.accelerators = self._get_accelerators()
         self._context_menu_start = None  # special: the "start/pause" context menu item
         self._create_shortcuts()
 
+        # Runtime game parameters
         self.round_end = None  # end of round or break
         self.time_left_on_pause = None  # if paused, time left in round or break
         self.round = 1
@@ -198,11 +141,52 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
         self._game_finished = False
         self._in_break = False  # only True when in visible break
 
+        # Initialize game
         self._initialize_game()
+
+    def _get_accelerators(self) -> tuple[Accelerator, ...]:
+        """Define Accelerator (context menu/shortcut key) info here."""
+        return (
+            Accelerator(
+                self.button_start, self.fire_button_start, "Start/Pause", ord("S")
+            ),
+            Accelerator(
+                self.button_clock_plus,
+                self.on_button_clock_plus,
+                "+1 minute",
+                ord("="),
+                flags=wx.ACCEL_SHIFT,
+            ),
+            Accelerator(
+                self.button_clock_minus,
+                self.on_button_clock_minus,
+                "-1 minute",
+                ord("-"),
+            ),
+            Accelerator(
+                self.button_end_round, self.on_button_end_round, "End Round", ord("R")
+            ),
+            Accelerator(
+                self.button_end_round,
+                self.on_button_end_round,
+                "",
+                ord("R"),
+                flags=wx.ACCEL_SHIFT,
+                make_menu_item=False,
+            ),
+            Accelerator(self.button_break, self.on_goto_break, "Go To Break", ord("B")),
+            Accelerator(
+                self.button_break,
+                self.on_goto_break,
+                "Go To Break",
+                ord("B"),
+                flags=wx.ACCEL_SHIFT,
+                make_menu_item=False,
+            ),
+        )
 
     def _create_shortcuts(self) -> None:
         """Create and bind the context menu items.  Not in wxGlade."""
-
         self.context_menu = wx.Menu()
         entries = []
 
@@ -223,12 +207,10 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
                 )
 
         self.Bind(wx.EVT_CONTEXT_MENU, self.on_context_menu)
-        accelerator_table = wx.AcceleratorTable(entries)
-        self.SetAcceleratorTable(accelerator_table)
+        self.SetAcceleratorTable(wx.AcceleratorTable(entries))
 
     def _initialize_game(self) -> None:
-        """Put clock in "game ready to start" mode."""
-
+        """Put clock in 'game ready to start' mode."""
         self._game_started = False
         self._game_finished = False
         self._round_1()
@@ -238,7 +220,6 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
 
     def _pause_game(self) -> None:
         """Programmatically "press the pause button"."""
-
         self.timer.Stop()
         self.time_left_on_pause = self.round_end - wx.DateTime.Now()
         self.button_start.SetLabelText("Start")
@@ -246,18 +227,15 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
 
     def _round_1(self) -> None:
         """Return to round 1."""
-
         self.round = 1
         self._update_round()
 
     def _break_this_round(self) -> bool:
-        """if True, go to a break after this round"""
-
+        """Determine if a break should occur after this round."""
         return self.round in self.settings.breaks
 
     def _update_round(self) -> None:
         """Change the round label"""
-
         self.label_round.SetLabelText(f"Round {self.round}")
         self.label_clock.SetBackgroundColour(RUN_COLOUR)
         self.label_round.SetBackgroundColour(RUN_COLOUR)
@@ -265,7 +243,6 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
 
     def _reset_clock(self) -> None:
         """reset clock to round_time"""
-
         minutes = (
             self.settings.break_length if self._in_break else self.settings.round_length
         )
@@ -274,14 +251,12 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
 
     def _update_clock(self) -> None:
         """Display the current countdown clock value"""
-
         time_left = self.round_end - wx.DateTime.Now()
         self.label_clock.SetLabelText(time_left.Format("%M:%S"))
         self.panel_1.Layout()
 
     def _update_statusbar(self) -> None:
         """Update the values in the status bar"""
-
         self.SetStatusText(
             f"Round {self.round} of {self.settings.rounds}",
             StatusbarFields.ROUND,
@@ -334,7 +309,6 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
 
     def _go_to_break(self) -> None:
         """Display a visible hospitality break, and count down."""
-
         self._in_break = True
         self.label_clock.SetBackgroundColour(BREAK_COLOUR)
         self.label_round.SetBackgroundColour(BREAK_COLOUR)
@@ -346,7 +320,6 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
 
     def _game_over(self) -> None:
         """Game is over."""
-
         self._pause_game()
         self.label_clock.SetLabelText("Done! ")
         self._handle_resize(self.label_clock, "Done! ")
@@ -354,45 +327,39 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
         self._game_finished = True
         bc_log(f"End of Game, {wx.DateTime.UNow().Format('%H:%M:%S.%l')}")
 
-    def on_menu_file_save(self, event) -> None:
-        """Save configuration for future use."""
-
+    def _present_file_dialog(
+        self, message: str, wildcard: str, load: bool = True
+    ) -> None:
+        """Popup a file dialog for loading or saving configuration."""
         dlg = wx.FileDialog(
-            self,
-            message="Save configuration to file",
-            defaultDir=str(Path(__file__)),
-            wildcard="*.json",
+            self, message=message, defaultDir=str(Path(__file__)), wildcard=wildcard
         )
         if dlg.ShowModal() == wx.ID_OK:
-            pth = dlg.GetPath()
-            self.settings.save_to_file(Path(pth))
+            pth = Path(dlg.GetPath())
+            if load:
+                self.settings.load_from_file(pth)
+                if not self._game_started:
+                    self._initialize_game()
+            else:
+                self.settings.save_to_file(pth)
+
+    def on_menu_file_save(self, event) -> None:
+        """Save configuration for future use."""
+        self._present_file_dialog("Save configuration to file", "*.json", load=False)
         event.Skip()
 
     def on_menu_file_load(self, event) -> None:
         """Load configuration from file."""
-
-        dlg = wx.FileDialog(
-            self,
-            message="Load Configuration From:",
-            defaultDir=str(Path(__file__)),
-            wildcard="*.json",
-        )
-        if dlg.ShowModal() == wx.ID_OK:
-            pth = Path(dlg.GetPath())
-            self.settings.load_from_file(Path(pth))
-            if not self._game_started:
-                self._initialize_game()
+        self._present_file_dialog("Load Configuration From:", "*.json")
         event.Skip()
 
     def on_menu_file_exit(self, event) -> None:
         """Exit the application from the File menu."""
-
         self.Close()
         event.Skip()
 
     def on_menu_settings_customize(self, event) -> None:
         """Bring up the settings box."""
-
         bc_log("Event handler 'on_menu_settings_customize'")
         with PreferencesDialog(self) as dlg:
             dlg.load(self.settings, self._game_started)
@@ -406,7 +373,6 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
 
     def on_menu_view_buttons(self, event) -> None:
         """Hide or show buttons on bottom of clock."""
-
         show = not event.IsChecked()
         self.sizer_1.Show(self.sizer_2, show=show, recursive=True)
         self.panel_1.Layout()
@@ -414,7 +380,6 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
 
     def on_menu_view_statusbar(self, event) -> None:
         """Hide or show the status bar on bottom of clock."""
-
         # TODO: currently breaks resizing (#23)
         statusbar = None if event.IsChecked() else self.frame_statusbar
         self.SetStatusBar(statusbar)
@@ -424,7 +389,6 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
 
     def on_menu_help_about(self, event) -> None:
         """Show the About box."""
-
         bc_log("showing About.")
         about_info = wx.adv.AboutDialogInfo()
         about_info.SetVersion("0.1", "Alpha release 0.1, Dec 2 2023")
@@ -441,18 +405,16 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
 
     def on_context_menu(self, event: wx.ContextMenuEvent) -> None:
         """Right click, bring up context menu."""
-
         pos = event.GetPosition()
         bc_log(f"context menu requested at {pos}, {self.ScreenToClient(pos)}")
         point = (50, 50) if pos == wx.DefaultPosition else self.ScreenToClient(pos)
 
-        # special: set the value of "Start" menu item to the value of the togglebutton
+        # special: set the value of "Start" menu item to the value of the toggle button
         self._context_menu_start.SetItemLabel(self.button_start.GetLabelText())
         self.PopupMenu(self.context_menu, point)
 
     def on_close(self, event) -> None:
         """Application has been asked to close. Warn if game is still running."""
-
         bc_log("closing!")
         if event.CanVeto() and self._game_started and not self._game_finished:
             answer = wx.MessageBox(
@@ -481,7 +443,6 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
 
     def on_resize(self, event) -> None:
         """Hack to resolve sizer not auto-sizing with panel on maximize/unmaximize."""
-
         self.Layout()
         self.sizer_1.SetDimension(self.panel_1.GetPosition(), self.panel_1.GetSize())
         self._handle_resize(
@@ -496,8 +457,7 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
         event.Skip()
 
     def fire_button_start(self, event) -> None:
-        """Convert a menu or keyboard "Start/pause" trigger to togglebutton event."""
-
+        """Convert a menu or keyboard "Start/pause" trigger to ToggleButton event."""
         bc_log("toggle start/pause from popupmenu or space key")
         # manually toggle button (wx.EVT_TOGGLEBUTTON does not do this)
         self.button_start.SetValue(not self.button_start.GetValue())
@@ -510,7 +470,6 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
 
     def on_button_start(self, event) -> None:
         """Start/Pause button has been pressed."""
-
         bc_log(
             "Event handler 'on_button_start', "
             f"clicked = {self.button_start.GetValue()}"
@@ -539,20 +498,17 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
 
     def on_button_reset(self, event) -> None:
         """Reset game button handler."""
-
         self._reset_clock()
         event.Skip()
 
     def on_button_clock_plus(self, event) -> None:
         """+1 minute button pressed."""
-
         self.round_end.Add(wx.TimeSpan.Minute())
         self._update_clock()
         event.Skip()
 
     def on_button_clock_minus(self, event) -> None:
         """-1 minute button pressed."""
-
         self.round_end.Subtract(wx.TimeSpan.Minute())
         if self.round_end <= wx.DateTime.Now():
             self.round_end = wx.DateTime.Now() + wx.TimeSpan(0, sec=5)
@@ -561,7 +517,6 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
 
     def on_goto_break(self, event):
         """Add an unscheduled break after this round."""
-
         # if we're breaking this round already, ignore
         if not self._break_this_round():
             self.settings.unscheduled_breaks.append(self.round)
@@ -572,14 +527,12 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
 
     def on_button_end_round(self, event) -> None:
         """End the round now."""
-
         self.round_end = wx.DateTime.Now() + wx.TimeSpan(0, sec=2)
         self._update_clock()
         event.Skip()
 
     def on_button_round_plus(self, event) -> None:
         """+1 Round pressed.  Note this doesn't change the clock."""
-
         if self.round < self.settings.rounds:
             self.round += 1
             self._update_round()
@@ -587,7 +540,6 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
 
     def on_button_round_minus(self, event) -> None:
         """-1 Round pressed.  Note this doesn't change the clock."""
-
         if self.round > 1:
             self.round -= 1
             self._update_round()
@@ -595,7 +547,6 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
 
     def on_clock_tick(self, event) -> None:
         """One of the timers tripped, call the appropriate reaction"""
-
         if event.Id == self.timer.GetId():  # 250ms tick
             # bc_log('second_tick')
             self._update_clock()
@@ -624,11 +575,10 @@ class PreferencesDialog(SetupDialog):  # pylint: disable=too-many-ancestors
 
     def load(self, settings: GameSettings, game_started: bool) -> None:
         """Load Dialog with game's current settings."""
-
         self.text_round_count.ChangeValue(str(settings.rounds))
         self.text_round_length.ChangeValue(str(settings.round_length))
         self.text_break_rounds.ChangeValue(
-            ",".join([str(x) for x in settings.scheduled_breaks])
+            ",".join(map(str, settings.scheduled_breaks))
         )
         self.text_break_length.ChangeValue(str(settings.break_length))
         self.check_invisible.SetValue(not settings.break_visible)
@@ -644,7 +594,6 @@ class PreferencesDialog(SetupDialog):  # pylint: disable=too-many-ancestors
 
         Returns a dict containing the settings,
             and a boolean that answers "Shall we restart the game?"
-
         """
 
         breaks_raw = self.text_break_rounds.GetValue()
@@ -663,7 +612,6 @@ class PreferencesDialog(SetupDialog):  # pylint: disable=too-many-ancestors
 
     def on_restart_checked(self, event) -> None:
         """Ensure user really wants to restart the game"""
-
         if self.check_restart.IsChecked():
             answer = wx.MessageBox(
                 message="Are you sure you want to restart the game?",
@@ -683,7 +631,6 @@ class MyApp(wx.App):
 
         Because this is an "init-alike", we should ignore "attribute defined
         outside init".
-
         """
 
         # pylint: disable-next=attribute-defined-outside-init
@@ -691,9 +638,6 @@ class MyApp(wx.App):
         self.SetTopWindow(self.frame)
         self.frame.Show()
         return True
-
-
-# end of class MyApp
 
 
 if __name__ == "__main__":
