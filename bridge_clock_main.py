@@ -225,6 +225,35 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
         self.button_start.SetLabelText("Start")
         self.button_start.SetValue(False)
 
+    def _set_bg(self, colour: str) -> None:
+        """Set the background colour of the clock and round text areas."""
+        bc_log("in _set_bg")
+        for widget in (
+            self.label_clock_colon,
+            self.label_clock_minutes,
+            self.label_clock_seconds,
+            self.label_round,
+        ):
+            widget.SetBackgroundColour(colour)
+        self.panel_1.Refresh()
+
+    @staticmethod
+    def _display_label(widget: wx.TextCtrl, label: str) -> None:
+        """Change and resize a clock label."""
+        widget.SetLabelText(label)
+
+    def _display_round_label(self, label: str) -> None:
+        """For ease of reading: display round text."""
+        self._display_label(self.label_round, label)
+
+    def _display_clock_minutes_label(self, label: str) -> None:
+        """For ease of reading: display minutes."""
+        self._display_label(self.label_clock_minutes, label)
+
+    def _display_clock_seconds_label(self, label: str) -> None:
+        """For ease of reading: change clock_seconds text."""
+        self._display_label(self.label_clock_seconds, label)
+
     def _round_1(self) -> None:
         """Return to round 1."""
         self.round = 1
@@ -236,9 +265,8 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
 
     def _update_round(self) -> None:
         """Change the round label"""
-        self.label_round.SetLabelText(f"Round {self.round}")
-        self.label_clock.SetBackgroundColour(RUN_COLOUR)
-        self.label_round.SetBackgroundColour(RUN_COLOUR)
+        self._display_round_label(f"Round {self.round}")
+        self._set_bg(RUN_COLOUR)
         self.panel_1.Layout()
 
     def _reset_clock(self) -> None:
@@ -252,7 +280,13 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
     def _update_clock(self) -> None:
         """Display the current countdown clock value"""
         time_left = self.round_end - wx.DateTime.Now()
-        self.label_clock.SetLabelText(time_left.Format("%M:%S"))
+        (minutes, seconds) = time_left.Format("%M:%S").split(":")
+        for time, widget in (
+            (minutes, self.label_clock_minutes),
+            (seconds, self.label_clock_seconds),
+        ):
+            if time != widget.GetLabelText():
+                self._display_label(widget, time)
         self.panel_1.Layout()
 
     def _update_statusbar(self) -> None:
@@ -311,9 +345,8 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
     def _go_to_break(self) -> None:
         """Display a visible hospitality break, and count down."""
         self._in_break = True
-        self.label_clock.SetBackgroundColour(BREAK_COLOUR)
-        self.label_round.SetBackgroundColour(BREAK_COLOUR)
-        self.label_round.SetLabelText("NEXT ROUND IN:")
+        self._set_bg(BREAK_COLOUR)
+        self._display_round_label("NEXT ROUND IN:")
         self.round_end = wx.DateTime.Now() + wx.TimeSpan.Minutes(
             self.settings.break_length
         )
@@ -323,8 +356,8 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
     def _game_over(self) -> None:
         """Game is over."""
         self._pause_game()
-        self.label_clock.SetLabelText("Done! ")
-        self._handle_resize(self.label_clock, "Done! ")
+        self._display_label(self.label_clock_minutes, "Game")
+        self._display_label(self.label_clock_seconds, "Over")
         self.panel_1.Layout()
         self._game_finished = True
         bc_log(f"End of Game, {wx.DateTime.UNow().Format('%H:%M:%S.%l')}")
@@ -334,7 +367,10 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
     ) -> None:
         """Popup a file dialog for loading or saving configuration."""
         dlg = wx.FileDialog(
-            self, message=message, defaultDir=str(Path(__file__)), wildcard=wildcard
+            self,
+            message=message,
+            defaultDir=str(Path(__file__) / "settings"),
+            wildcard=wildcard,
         )
         if dlg.ShowModal() == wx.ID_OK:
             pth = Path(dlg.GetPath())
@@ -435,23 +471,53 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
         event.Skip()
 
     @staticmethod
-    def _handle_resize(obj: wx.Control, scale_text: str) -> None:
-        """Scale text to fit window."""
-        w, h = obj.GetSize()
-        tw, th = obj.GetTextExtent(scale_text).Get()
-        scale = min(h / th, w / tw)
-        new_font = obj.GetFont().Scaled(scale)
-        obj.SetFont(new_font)
+    def _rescale_text(
+        boundary_object: wx.Sizer | wx.Window, widget_info: Tuple[wx.Window, str]
+    ) -> None:
+        """Work out the new font size for the scaled widgets and set it in them.
+
+        Note that this works only for widgets in horizontal format; height is constant.
+        """
+        if not widget_info:
+            bc_log("_rescale_text given no widgets to scale, ignoring!")
+            return
+
+        current_width, current_height = boundary_object.GetSize()
+        total_width = 0
+        for widget, scale_text in widget_info:
+            text_width, text_height = widget.GetTextExtent(scale_text).Get()
+            total_width += text_width
+        scale = min(current_width / total_width, current_height / text_height)
+        new_font = widget_info[0][0].GetFont().Scaled(scale)
+        for widget, _ in widget_info:
+            widget.SetFont(new_font)
+
+    def _resize_round(self) -> None:
+        """Scale Round text to fit window."""
+        if self._in_break:
+            scale_text = "TIME TO NEXT:"
+        else:
+            scale_text = "ROUND 8" if self.settings.rounds < 10 else "ROUND 88"
+        round_widget_info = ((self.label_round, scale_text),)
+        self._rescale_text(self.label_round, round_widget_info)
+
+    def _resize_clock(self) -> None:
+        """Scale all clock widgets to fit window."""
+        minutes_text = "88" if self.settings.round_length < 100 else "888"
+        clock_widget_info = (
+            (self.label_clock_minutes, minutes_text),
+            (self.label_clock_colon, ":"),
+            (self.label_clock_seconds, "88"),
+        )
+        self._rescale_text(self.sizer_clock, clock_widget_info)
 
     def on_resize(self, event) -> None:
         """Hack to resolve sizer not auto-sizing with panel on maximize/unmaximize."""
         self.Layout()
+        bc_log("In on_resize!")
         self.sizer_1.SetDimension(self.panel_1.GetPosition(), self.panel_1.GetSize())
-        self._handle_resize(self.label_round, "NEXT ROUND IN:")
-        self._handle_resize(
-            self.label_clock,
-            "88:88" if self.settings.round_length < 100 else "888:88",
-        )
+        self._resize_round()
+        self._resize_clock()
         self.panel_1.Layout()
         event.Skip()
 
@@ -528,7 +594,7 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
                 "Break already scheduled for this round.",
                 style=wx.PD_AUTO_HIDE,
             )
-            dlg.SetPosition(  # show above "go to break" button)
+            dlg.SetPosition(  # show above "go to break" button
                 self.button_break.GetScreenPosition() - (0, dlg.GetSize().GetHeight())
             )
             wx.CallLater(500, dlg.Update, 100)
