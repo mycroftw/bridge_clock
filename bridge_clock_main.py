@@ -4,7 +4,7 @@ import dataclasses
 import json
 from enum import IntEnum
 from pathlib import Path
-from typing import Callable, ClassVar, Tuple
+from typing import Callable, ClassVar, NamedTuple, Tuple
 
 import wx
 import wx.adv
@@ -109,6 +109,13 @@ class Accelerator:
     flags: int = wx.ACCEL_NORMAL
     make_menu_item: bool = True
     make_keycode: bool = True
+
+
+class _WidgetInfo(NamedTuple):
+    """Used in resize operations."""
+
+    widget: wx.Control
+    scale_text: str
 
 
 class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
@@ -356,8 +363,9 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
     def _game_over(self) -> None:
         """Game is over."""
         self._pause_game()
-        self._display_label(self.label_clock_minutes, "Game")
-        self._display_label(self.label_clock_seconds, "Over")
+        self._display_label(self.label_round, "Game Over!")
+        self._display_label(self.label_clock_minutes, "00")
+        self._display_label(self.label_clock_seconds, "00")
         self.panel_1.Layout()
         self._game_finished = True
         bc_log(f"End of Game, {wx.DateTime.UNow().Format('%H:%M:%S.%l')}")
@@ -472,7 +480,7 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
 
     @staticmethod
     def _rescale_text(
-        boundary_object: wx.Sizer | wx.Window, widget_info: Tuple[wx.Window, str]
+        boundary_object: wx.Sizer | wx.Window, widget_info: Tuple[_WidgetInfo, ...]
     ) -> None:
         """Work out the new font size for the scaled widgets and set it in them.
 
@@ -484,11 +492,11 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
 
         current_width, current_height = boundary_object.GetSize()
         total_width = 0
-        for widget, scale_text in widget_info:
-            text_width, text_height = widget.GetTextExtent(scale_text).Get()
+        for info in widget_info:
+            text_width, text_height = info.widget.GetTextExtent(info.scale_text).Get()
             total_width += text_width
         scale = min(current_width / total_width, current_height / text_height)
-        new_font = widget_info[0][0].GetFont().Scaled(scale)
+        new_font = widget_info[0].widget.GetFont().Scaled(scale)
         for widget, _ in widget_info:
             widget.SetFont(new_font)
 
@@ -498,16 +506,16 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
             scale_text = "TIME TO NEXT:"
         else:
             scale_text = "ROUND 8" if self.settings.rounds < 10 else "ROUND 88"
-        round_widget_info = ((self.label_round, scale_text),)
+        round_widget_info = (_WidgetInfo(self.label_round, scale_text),)
         self._rescale_text(self.label_round, round_widget_info)
 
     def _resize_clock(self) -> None:
         """Scale all clock widgets to fit window."""
         minutes_text = "88" if self.settings.round_length < 100 else "888"
         clock_widget_info = (
-            (self.label_clock_minutes, minutes_text),
-            (self.label_clock_colon, ":"),
-            (self.label_clock_seconds, "88"),
+            _WidgetInfo(self.label_clock_minutes, minutes_text),
+            _WidgetInfo(self.label_clock_colon, ":"),
+            _WidgetInfo(self.label_clock_seconds, "88"),
         )
         self._rescale_text(self.sizer_clock, clock_widget_info)
 
