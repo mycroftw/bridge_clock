@@ -4,7 +4,7 @@ import dataclasses
 import json
 from enum import IntEnum
 from pathlib import Path
-from typing import Callable, ClassVar, NamedTuple, Tuple
+from typing import Callable, ClassVar, NamedTuple, Optional, Tuple
 
 import wx
 import wx.adv
@@ -25,6 +25,7 @@ class GameSettings:
     unscheduled_breaks: list[int] = dataclasses.field(default_factory=list)
     break_length: int = 5
     break_visible: bool = False
+    description: str = ""
     sounds: bool = False
     manual_restart: bool = False
     load_last: dataclasses.InitVar[bool] = False
@@ -48,7 +49,6 @@ class GameSettings:
 
         Includes scheduled breaks or ones manually selected with "go to break" button.
         """
-
         return tuple(set(self.scheduled_breaks).union(self.unscheduled_breaks))
 
     def _save_as_last(self) -> None:
@@ -221,6 +221,7 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
         self._game_started = False
         self._game_finished = False
         self._round_1()
+        self._update_description()
         self._reset_clock()
         self._pause_game()
         self._update_statusbar()
@@ -236,10 +237,11 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
         """Set the background colour of the clock and round text areas."""
         bc_log("in _set_bg")
         for widget in (
+            self.label_round,
+            self.label_description,
             self.label_clock_colon,
             self.label_clock_minutes,
             self.label_clock_seconds,
-            self.label_round,
         ):
             widget.SetBackgroundColour(colour)
         self.panel_1.Refresh()
@@ -251,15 +253,15 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
 
     def _display_round_label(self, label: str) -> None:
         """For ease of reading: display round text."""
-        self._display_label(self.label_round, label)
+        self.label_round.SetLabelText(label)
 
-    def _display_clock_minutes_label(self, label: str) -> None:
-        """For ease of reading: display minutes."""
-        self._display_label(self.label_clock_minutes, label)
-
-    def _display_clock_seconds_label(self, label: str) -> None:
-        """For ease of reading: change clock_seconds text."""
-        self._display_label(self.label_clock_seconds, label)
+    def _display_description(self, label: Optional[str]) -> None:
+        if label:
+            self.label_description.SetLabel(label)
+            self.label_description.Show()
+        else:
+            self.label_description.SetLabelText("")
+            self.label_description.Hide()
 
     def _round_1(self) -> None:
         """Return to round 1."""
@@ -295,6 +297,10 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
             if time != widget.GetLabelText():
                 self._display_label(widget, time)
         self.panel_1.Layout()
+
+    def _update_description(self) -> None:
+        """Display and update the description, if one exists."""
+        self._display_description(self.settings.description)
 
     def _update_statusbar(self) -> None:
         """Update the values in the status bar"""
@@ -412,6 +418,7 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
             if dlg.ShowModal() == wx.ID_OK:
                 new_values, restart = dlg.get_values()
                 self.settings.update_from_dict(new_values)
+                self._update_description()
                 self._update_statusbar()
                 if not self._game_started or restart:  # reset game
                     self._initialize_game()
@@ -509,6 +516,15 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
         round_widget_info = (_WidgetInfo(self.label_round, scale_text),)
         self._rescale_text(self.label_round, round_widget_info)
 
+    def _resize_description(self) -> None:
+        """Scale description to fit window, if it exists."""
+        if not self.settings.description:
+            return
+        description_widget_info = (
+            _WidgetInfo(self.label_description, self.settings.description),
+        )
+        self._rescale_text(self.label_description, description_widget_info)
+
     def _resize_clock(self) -> None:
         """Scale all clock widgets to fit window."""
         minutes_text = "88" if self.settings.round_length < 100 else "888"
@@ -525,6 +541,7 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
         bc_log("In on_resize!")
         self.sizer_1.SetDimension(self.panel_1.GetPosition(), self.panel_1.GetSize())
         self._resize_round()
+        self._resize_description()
         self._resize_clock()
         self.panel_1.Layout()
         event.Skip()
@@ -664,6 +681,11 @@ class PreferencesDialog(SetupDialog):  # pylint: disable=too-many-ancestors
             ",".join(map(str, settings.scheduled_breaks))
         )
         self.text_break_length.ChangeValue(str(settings.break_length))
+
+        self.check_show_description.SetValue(bool(settings.description))
+        self.text_description.SetEditable(bool(settings.description))
+        self.text_description.ChangeValue(settings.description)
+
         self.check_invisible.SetValue(not settings.break_visible)
         self.check_manual.SetValue(settings.manual_restart)
         self.check_sounds.SetValue(settings.sounds)
@@ -688,10 +710,20 @@ class PreferencesDialog(SetupDialog):  # pylint: disable=too-many-ancestors
             "scheduled_breaks": tuple(int(b) for b in breaks),
             "break_length": int(self.text_break_length.GetValue()),
             "break_visible": not self.check_invisible.GetValue(),
+            "description": (
+                self.text_description.GetValue()
+                if self.check_show_description.IsChecked()
+                else ""
+            ),
             "manual_restart": self.check_manual.GetValue(),
             "sounds": self.check_sounds.GetValue(),
         }
         return ret, self.check_restart.IsChecked()
+
+    def on_description_checked(self, event) -> None:
+        """Make the description field editable or not"""
+        self.text_description.SetEditable(self.check_show_description.IsChecked())
+        event.Skip()
 
     def on_restart_checked(self, event) -> None:
         """Ensure user really wants to restart the game"""
