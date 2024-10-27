@@ -1,13 +1,16 @@
 repos:
-  - repo: https://github.com/psf/black
-    rev: 24.8.0
-    hooks:
-      - id: black
-        exclude: wxglade_out.py
   - repo: https://github.com/PyCQA/isort
     rev: 5.13.2
     hooks:
       - id: isort
+        exclude: wxglade_out.py
+        verbose: true
+        additional_dependencies: ["toml"]
+        args: [--verbose, --src-path, clock]
+  - repo: https://github.com/psf/black
+    rev: 24.10.0
+    hooks:
+      - id: black
         exclude: wxglade_out.py
   - repo: https://github.com/PyCQA/flake8
     rev: 7.1.1
