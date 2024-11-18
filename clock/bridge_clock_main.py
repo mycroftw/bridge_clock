@@ -11,7 +11,7 @@ import wx.adv
 
 import validators as vld
 from clock_main_frame import RoundTimer, SetupDialog
-from utils import BREAK_COLOUR, RUN_COLOUR, bc_log
+from utils import BREAK_COLOUR, RUN_COLOUR, bc_log, play_sound
 
 
 @dataclasses.dataclass(slots=True)
@@ -233,6 +233,11 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
         self.button_start.SetLabelText("Start")
         self.button_start.SetValue(False)
 
+    def _play_sound(self, file_name: str) -> None:
+        """If sounds are on, play a sound."""
+        if self.settings.sounds:
+            play_sound(file_name)
+
     def _set_bg(self, colour: str) -> None:
         """Set the background colour of the clock and round text areas."""
         bc_log("in _set_bg")
@@ -276,6 +281,7 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
         """Change the round label"""
         self._display_round_label(f"Round {self.round}")
         self._set_bg(RUN_COLOUR)
+        self._play_sound("round_end")
         self.panel_1.Layout()
 
     def _reset_clock(self) -> None:
@@ -670,6 +676,7 @@ class PreferencesDialog(SetupDialog):  # pylint: disable=too-many-ancestors
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # add validators - DNE in wxGlade
+        self.check_sounds.SetValidator(vld.SoundValidator())
         self.text_round_count.SetValidator(vld.RoundCountValidator())
         self.text_round_length.SetValidator(vld.RoundLengthValidator())
         self.text_break_rounds.SetValidator(vld.BreakValidator())

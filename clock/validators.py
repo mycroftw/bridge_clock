@@ -10,7 +10,7 @@ from typing import Optional
 
 import wx
 
-from utils import ERROR_COLOUR, bc_log
+from utils import DEFAULT_SOUND, ERROR_COLOUR, bc_log
 
 # because this is a wxPython class, it uses wxWidgets C-Style function names.
 # supress the complaint throughout.
@@ -47,9 +47,6 @@ class BaseValidator(wx.Validator):
     ):
         super().__init__()
         self.limits = limits
-        self.min_value = limits.min
-        self.max_value = limits.max
-        self.warn_value = limits.warn
         self.validator_name = validator_name
         self.error_message = error_message.format(name=validator_name)
         self.Bind(wx.EVT_TEXT, self.on_char)
@@ -223,3 +220,36 @@ class BreakLengthValidator(BaseValidator):
 
     def __init__(self, limits: Optional[ValidatorLimits] = BREAK_LENGTH_LIMITS):
         super().__init__(limits=limits, validator_name="Break Length")
+
+
+class SoundValidator(wx.Validator):
+    """Check if sounds can be played."""
+
+    def __init__(self):
+        super().__init__()
+        self.Bind(wx.EVT_CHECKBOX, self.on_checked)
+
+    def Clone(self):
+        return self.__class__()
+
+    def TransferToWindow(self):
+        return True
+
+    def TransferFromWindow(self):
+        return True
+
+    def Validate(self, parent):
+        return self._validate()
+
+    def _validate(self):
+        ctrl = self.GetWindow()
+        checked = ctrl.IsChecked()
+        if not checked or Path(DEFAULT_SOUND).exists():
+            return True
+
+        wx.MessageBox("Can not find default sound, assuming no sounds exist.")
+        ctrl.SetValue(False)
+        return False
+
+    def on_checked(self, event):
+        return self._validate()
