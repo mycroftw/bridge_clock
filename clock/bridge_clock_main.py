@@ -353,7 +353,6 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
                 bc_log("next round!")
         else:  # last round done, game over
             self._game_over()
-            self.timer.Stop()
 
     def _go_to_break(self) -> None:
         """Display a visible hospitality break, and count down."""
@@ -368,12 +367,12 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
 
     def _game_over(self) -> None:
         """Game is over."""
-        self._pause_game()
+        self._game_finished = True
         self._display_label(self.label_round, "Game Over!")
         self._display_label(self.label_clock_minutes, "00")
         self._display_label(self.label_clock_seconds, "00")
+        self._resize_clock()
         self.panel_1.Layout()
-        self._game_finished = True
         bc_log(f"End of Game, {wx.DateTime.UNow().Format('%H:%M:%S.%l')}")
 
     def _present_file_dialog(
@@ -528,6 +527,8 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
     def _resize_clock(self) -> None:
         """Scale all clock widgets to fit window."""
         minutes_text = "88" if self.settings.round_length < 100 else "888"
+        if self._game_finished:
+            minutes_text = "-" + minutes_text
         clock_widget_info = (
             _WidgetInfo(self.label_clock_minutes, minutes_text),
             _WidgetInfo(self.label_clock_colon, ":"),
@@ -650,7 +651,7 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
         if event.Id == self.timer.GetId():  # 250ms tick
             # bc_log('second_tick')
             self._update_clock()
-            if self.round_end <= wx.DateTime.Now():
+            if self.round_end <= wx.DateTime.Now() and not self._game_finished:
                 bc_log(
                     "End of Round: clock time: "
                     f"{wx.DateTime.UNow().Format('%H:%M:%S.%l')}"
