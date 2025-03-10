@@ -9,8 +9,16 @@ import dataclasses
 from typing import Optional
 
 import wx
+from playsound3.playsound3 import PlaysoundException
 
-from utils import DEFAULT_SOUND, ERROR_COLOUR, bc_log
+from clock.utils import (
+    DEFAULT_SOUND,
+    ERROR_COLOUR,
+    NO_SOUND,
+    SOUNDS_DIR,
+    play_sound,
+    sound_name_to_file,
+)
 
 # because this is a wxPython class, it uses wxWidgets C-Style function names.
 # supress the complaint throughout.
@@ -53,7 +61,7 @@ class BaseValidator(wx.Validator):
 
     def Clone(self):
         """Clone the validator. Required by wx."""
-        return self.__class__(self.limits)
+        return self.__class__(limits=self.limits)
 
     def TransferToWindow(self):
         """Return False if data transfer to the window fails."""
@@ -188,7 +196,6 @@ class BreakValidator(wx.Validator):
 
     def Validate(self, parent):
         """Break Rounds cs-ints, between 1 and Rounds, or blank (no breaks)."""
-        bc_log("in break validator")
         ctrl = self.GetWindow()
         value = ctrl.GetValue().strip()
         ctrl.SetValue(value)
@@ -230,26 +237,53 @@ class SoundValidator(wx.Validator):
         self.Bind(wx.EVT_CHECKBOX, self.on_checked)
 
     def Clone(self):
+        """Clone the validator.  Required by wx."""
         return self.__class__()
 
     def TransferToWindow(self):
+        """Return False if data transfer to the window fails."""
         return True
 
     def TransferFromWindow(self):
+        """Return False if data transfer from the window fails."""
         return True
 
-    def Validate(self, parent):
-        return self._validate()
+    def _fail_validation(self, message: str) -> None:
+        """Display a message and uncheck the sounds box."""
+        wx.MessageBox(message)
+        self.GetWindow().SetChecked(False)
 
-    def _validate(self):
-        ctrl = self.GetWindow()
-        checked = ctrl.IsChecked()
-        if not checked or Path(DEFAULT_SOUND).exists():
-            return True
+    @staticmethod
+    def _sounds_play() -> str:
+        """Check if sounds are playable.  Returns error string on fail."""
 
-        wx.MessageBox("Can not find default sound, assuming no sounds exist.")
-        ctrl.SetValue(False)
-        return False
+        if not SOUNDS_DIR.exists():
+            return f"Can not find {str(SOUNDS_DIR)}, disabling sound."
+        if not sound_name_to_file(DEFAULT_SOUND):
+            return f"Can not find {str(DEFAULT_SOUND)}, disabling sound."
+        test_sound = NO_SOUND if sound_name_to_file(NO_SOUND) else DEFAULT_SOUND
+        try:
+            play_sound(test_sound)
+        except PlaysoundException:
+            return "Error playing sound, disabling sound"
 
-    def on_checked(self, event):
-        return self._validate()
+        return ""  # no fail message, so everything good.
+
+    def _test_sound(self) -> bool:
+        """Test and clear/send message if can't play sounds."""
+        fail_message = self._sounds_play()
+        if fail_message:
+            self._fail_validation(fail_message)
+        return not fail_message
+
+    def Validate(self, parent: wx.Window) -> bool:
+        """Confirm sounds can be played.  If not, warn user and disable sounds."""
+        if self.GetWindow().IsChecked():
+            return self._test_sound()
+        # otherwise sounds not wanted, so we're good.
+        return True
+
+    def on_checked(self, event: wx.CommandEvent) -> None:
+        """Confirm sounds can be played.  If not, warn user and uncheck sound box."""
+        if event.IsChecked():
+            self._test_sound()
