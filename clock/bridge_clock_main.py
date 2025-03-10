@@ -281,7 +281,6 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
         """Change the round label"""
         self._display_round_label(f"Round {self.round}")
         self._set_bg(RUN_COLOUR)
-        self._play_sound("round_end")
         self.panel_1.Layout()
 
     def _reset_clock(self) -> None:
@@ -344,10 +343,12 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
             ):
                 bc_log("Break now!")
                 self._go_to_break()
+                self._play_sound("go_to_break")
             else:
                 self.round += 1
                 self._in_break = False
                 self.button_end_round.SetLabel("End Round")
+                self._play_sound("round_end")
                 self._update_round()
                 self._reset_clock()
                 if not self.settings.break_visible and self._break_this_round():
@@ -358,6 +359,7 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
                     self._pause_game()
                 bc_log("next round!")
         else:  # last round done, game over
+            self._play_sound("game_over")
             self._game_over()
 
     def _go_to_break(self) -> None:
@@ -503,12 +505,13 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
             return
 
         current_width, current_height = boundary_object.GetSize()
-        total_width = total_height = 0
+        total_width = 0
+        max_height = 0
         for info in widget_info:
             text_width, text_height = info.widget.GetTextExtent(info.scale_text).Get()
             total_width += text_width
-            total_height = max(text_height, total_height)
-        scale = min(current_width / total_width, current_height / total_height)
+            max_height = max(max_height, text_height)
+        scale = min(current_width / total_width, current_height / max_height)
         new_font = widget_info[0].widget.GetFont().Scaled(scale)
         for widget, _ in widget_info:
             widget.SetFont(new_font)
