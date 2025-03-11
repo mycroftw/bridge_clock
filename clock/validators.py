@@ -6,6 +6,7 @@ kept here to avoid cluttering up the main flow.
 """
 
 import dataclasses
+from typing import Optional
 
 import wx
 
@@ -25,7 +26,7 @@ class ValidatorLimits:
     warn: int  # confirm if greater (could be desired, could be 115/155 instead of 15)
 
 
-# LIMITS SET HERE
+# SET LIMITS HERE
 ROUND_LIMITS = ValidatorLimits(min=1, max=20, warn=14)  # 13x2 board rounds + 1
 ROUND_LENGTH_LIMITS = ValidatorLimits(min=1, max=210, warn=85)  # 12x7 minutes/board
 BREAK_LENGTH_LIMITS = ValidatorLimits(min=0, max=100, warn=7)  # minutes
@@ -45,6 +46,7 @@ class BaseValidator(wx.Validator):
         error_message: str = "{name} must be an integer.",
     ):
         super().__init__()
+        self.limits = limits
         self.min_value = limits.min
         self.max_value = limits.max
         self.warn_value = limits.warn
@@ -54,7 +56,7 @@ class BaseValidator(wx.Validator):
 
     def Clone(self):
         """Clone the validator. Required by wx."""
-        return self.__class__()
+        return self.__class__(self.limits)
 
     def TransferToWindow(self):
         """Return False if data transfer to the window fails."""
@@ -70,10 +72,10 @@ class BaseValidator(wx.Validator):
             count = int(value)
         except ValueError as e:
             raise BridgeClockValidateError(self.error_message) from e
-        if count not in range(self.min_value, self.max_value + 1):
+        if count not in range(self.limits.min, self.limits.max + 1):
             raise BridgeClockValidateError(
                 f"{self.validator_name} must be between "
-                f"{self.min_value} and {self.max_value}."
+                f"{self.limits.min} and {self.limits.max}."
             )
 
     # pylint: disable=unused-argument
@@ -91,7 +93,7 @@ class BaseValidator(wx.Validator):
             wx.MessageBox(str(e))
             return False
 
-        if self.warn_value and int(text) > self.warn_value:
+        if self.limits.warn and int(text) > self.limits.warn:
             wx.MessageBox(
                 f"Confirming: your {self.validator_name} value is {text.strip()}."
             )
@@ -114,8 +116,8 @@ class BaseValidator(wx.Validator):
 class RoundCountValidator(BaseValidator):
     """Round count: positive int."""
 
-    def __init__(self):
-        super().__init__(limits=ROUND_LIMITS, validator_name="Round Count")
+    def __init__(self, limits: Optional[ValidatorLimits] = ROUND_LIMITS):
+        super().__init__(limits=limits, validator_name="Round Count")
 
     def on_char(self, event):
         """value changed, confirm still valid.
@@ -133,8 +135,8 @@ class RoundCountValidator(BaseValidator):
 class RoundLengthValidator(BaseValidator):
     """Round length: int, in minutes."""
 
-    def __init__(self):
-        super().__init__(limits=ROUND_LENGTH_LIMITS, validator_name="Round Length")
+    def __init__(self, limits: Optional[ValidatorLimits] = ROUND_LENGTH_LIMITS):
+        super().__init__(limits=limits, validator_name="Round Length")
 
 
 class BreakValidator(wx.Validator):
@@ -160,10 +162,11 @@ class BreakValidator(wx.Validator):
 
         return True
 
-    def _validate(self, value: str, parent: wx.TextCtrl) -> None:
+    @staticmethod
+    def _validate(value: str, parent: wx.TextCtrl) -> None:
         """Do the validation. Throws BridgeClockValidationError on fail."""
 
-        if not value:  # no breaks is valid
+        if not value:  # "no breaks" is valid
             return
 
         try:
@@ -218,5 +221,5 @@ class BreakValidator(wx.Validator):
 class BreakLengthValidator(BaseValidator):
     """Break length: int, in minutes."""
 
-    def __init__(self):
-        super().__init__(limits=BREAK_LENGTH_LIMITS, validator_name="Break Length")
+    def __init__(self, limits: Optional[ValidatorLimits] = BREAK_LENGTH_LIMITS):
+        super().__init__(limits=limits, validator_name="Break Length")

@@ -443,9 +443,9 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
         """Show the About box."""
         bc_log("showing About.")
         about_info = wx.adv.AboutDialogInfo()
-        about_info.SetVersion("0.1", "Alpha release 0.1, Dec 2 2023")
+        about_info.SetVersion("0.9", "Alpha release 0.9, November 11, 2024")
         about_info.SetName("BridgeTimer")
-        about_info.SetCopyright("(C) Michael Farebrother 2023")
+        about_info.SetCopyright("(C) Michael Farebrother 2023-2024")
         about_info.SetDescription(
             "\nAvailable from https://github.com/mycroftw/bridge_clock\n"
             "Licenced under the GPL v3.\n"
@@ -497,11 +497,12 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
             return
 
         current_width, current_height = boundary_object.GetSize()
-        total_width = 0
+        total_width = total_height = 0
         for info in widget_info:
             text_width, text_height = info.widget.GetTextExtent(info.scale_text).Get()
             total_width += text_width
-        scale = min(current_width / total_width, current_height / text_height)
+            total_height = max(text_height, total_height)
+        scale = min(current_width / total_width, current_height / total_height)
         new_font = widget_info[0].widget.GetFont().Scaled(scale)
         for widget, _ in widget_info:
             widget.SetFont(new_font)
@@ -708,7 +709,7 @@ class PreferencesDialog(SetupDialog):  # pylint: disable=too-many-ancestors
         ret = {
             "rounds": int(self.text_round_count.GetValue()),
             "round_length": int(self.text_round_length.GetValue()),
-            "scheduled_breaks": tuple(int(b) for b in breaks),
+            "scheduled_breaks": tuple(sorted(int(b) for b in breaks)),
             "break_length": int(self.text_break_length.GetValue()),
             "break_visible": not self.check_invisible.GetValue(),
             "description": (

@@ -18,7 +18,7 @@ it's very easy to use and flexible, but it has two issues that limit its lifespa
   and which do not work at all in Windows 11.
 
 There are several webapp options, which can be very nice.
-Of course, most of the tournaments I run don't have enough wifi access for me,
+Of course, most of the tournaments I run don't have enough Wi-Fi access for me,
 never mind a webapp.
 
 So, I've written a new one.
@@ -47,4 +47,5 @@ Right now it is best to install Python (at least 3.8) and wxPython (Phoenix).
 If you don't know how to get those, this is too alpha for you,
 so I'm not providing instructions (yet).
 
-Once you have these, run `python .\bridge_clock_main.py` and enjoy.
+Once you have these, download the scripts in the clock subfolder, 
+run `python .\bridge_clock_main.py` and enjoy.
