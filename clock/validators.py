@@ -276,6 +276,7 @@ class SoundValidator(wx.Validator):
             self._fail_validation(fail_message)
         return not fail_message
 
+    # pylint: disable=unused-argument
     def Validate(self, parent: wx.Window) -> bool:
         """Confirm sounds can be played.  If not, warn user and disable sounds."""
         if self.GetWindow().IsChecked():
