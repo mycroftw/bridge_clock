@@ -1,1 +1,3 @@
 wxPython
+pytest
+playsound3

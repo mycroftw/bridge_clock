@@ -19,6 +19,7 @@ jobs:
         python -m pip install --upgrade pip
         pip install pylint
         pip install wxPython
+        pip install playsound3
     - name: Analysing the code with pylint
       run: |
         pylint $(git ls-files '*.py') --disable=fixme --ignore 'wxglade_out.py' --extension-pkg-whitelist wx --fail-on "W,E,F" --fail-under 9.5
