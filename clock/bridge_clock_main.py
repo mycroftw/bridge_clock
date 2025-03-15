@@ -576,17 +576,18 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
             f"clicked = {self.button_start.GetValue()}"
         )
 
+        if self._game_finished:
+            answer = wx.MessageBox(
+                "The game has ended.  Do you want to start another session "
+                "with the same parameters?",
+                "Start another session",
+                wx.YES_NO | wx.CANCEL,
+                self,
+            )
+            if answer == wx.YES:
+                self._initialize_game()
+
         if self.button_start.GetValue():
-            if self._game_finished:
-                answer = wx.MessageBox(
-                    "The game has ended.  Do you want to start another "
-                    "session with the same parameters?",
-                    "Start another session",
-                    wx.YES_NO | wx.CANCEL,
-                    self,
-                )
-                if answer == wx.YES:
-                    self._initialize_game()
             self._game_started = True  # provide "restart" option
             self.button_start.SetLabelText("Pause")
             if self.time_left_on_pause:
