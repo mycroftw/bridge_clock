@@ -657,6 +657,9 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
     def on_button_end_round(self, event) -> None:
         """End the round now."""
         self.round_end = wx.DateTime.Now() + wx.TimeSpan(0, sec=2)
+        # issue #57 - if paused, adjust "time left on pause" as well
+        if self.time_left_on_pause:
+            self.time_left_on_pause = wx.TimeSpan(0, sec=2)
         self._update_clock()
         event.Skip()
 
