@@ -551,7 +551,7 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
         """Scale all clock widgets to fit window."""
         minutes_text = "88" if self.settings.round_length < 100 else "888"
         if self._game_finished:
-            minutes_text = "-" + minutes_text
+            minutes_text = f"-{minutes_text}"
         clock_widget_info = (
             _WidgetInfo(self.label_clock_minutes, minutes_text),
             _WidgetInfo(self.label_clock_colon, ":"),
@@ -623,6 +623,8 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
     def on_button_clock_plus(self, event) -> None:
         """+1 minute button pressed."""
         self.round_end.Add(wx.TimeSpan.Minute())
+        if self.time_left_on_pause:
+            self.time_left_on_pause.Add(wx.TimeSpan.Minute())
         self._update_clock()
         event.Skip()
 
@@ -631,6 +633,11 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
         self.round_end.Subtract(wx.TimeSpan.Minute())
         if self.round_end <= wx.DateTime.Now():
             self.round_end = wx.DateTime.Now() + wx.TimeSpan(0, sec=5)
+        if self.time_left_on_pause:
+            if self.time_left_on_pause > wx.TimeSpan.Minute():
+                self.time_left_on_pause.Subtract(wx.TimeSpan.Minute())
+            else:
+                self.time_left_on_pause = wx.TimeSpan(0, sec=5)
         self._update_clock()
         event.Skip()
 
