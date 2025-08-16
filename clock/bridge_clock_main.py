@@ -238,6 +238,10 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
         if self.settings.sounds:
             play_sound(file_name)
 
+    def _redraw_clock(self) -> None:
+        """Convenience function: calls Layout on the main panel."""
+        self.panel_1.Layout()
+
     def _set_bg(self, colour: str) -> None:
         """Set the background colour of the clock and round text areas."""
         bc_log("in _set_bg")
@@ -261,12 +265,17 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
         self.label_round.SetLabelText(label)
 
     def _display_description(self, label: Optional[str]) -> None:
+        shown = self.label_description.IsShown()
         if label:
             self.label_description.SetLabel(label)
-            self.label_description.Show()
+            if not shown:
+                self.label_description.Show()
+                self._resize_all()
         else:
             self.label_description.SetLabelText("")
-            self.label_description.Hide()
+            if shown:
+                self.label_description.Hide()
+                self._resize_all()
 
     def _round_1(self) -> None:
         """Return to round 1."""
@@ -281,7 +290,7 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
         """Change the round label"""
         self._display_round_label(f"Round {self.round}")
         self._set_bg(RUN_COLOUR)
-        self.panel_1.Layout()
+        self._redraw_clock()
 
     def _reset_clock(self) -> None:
         """reset clock to round_time"""
@@ -301,7 +310,7 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
         ):
             if time != widget.GetLabelText():
                 self._display_label(widget, time)
-        self.panel_1.Layout()
+        self._redraw_clock()
 
     def _update_description(self) -> None:
         """Display and update the description, if one exists."""
@@ -371,16 +380,19 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
             self.settings.break_length
         )
         self.button_end_round.SetLabel("End Break")
+        self._resize_round()
         self._update_clock()
 
     def _game_over(self) -> None:
         """Game is over."""
         self._game_finished = True
         self._display_label(self.label_round, "Game Over!")
-        self._display_label(self.label_clock_minutes, "00")
+        self._display_label(self.label_clock_minutes, " 00")
         self._display_label(self.label_clock_seconds, "00")
-        self._resize_clock()
-        self.panel_1.Layout()
+        self._redraw_clock()
+        self._resize_all()
+        self.button_start.SetLabelText("Restart")
+        self.button_start.SetValue(False)
         bc_log(f"End of Game, {wx.DateTime.UNow().Format('%H:%M:%S.%l')}")
 
     def _present_file_dialog(
@@ -435,7 +447,7 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
         """Hide or show buttons on bottom of clock."""
         show = not event.IsChecked()
         self.sizer_1.Show(self.sizer_2, show=show, recursive=True)
-        self.panel_1.Layout()
+        self._redraw_clock()
         event.Skip()
 
     def on_menu_view_statusbar(self, event) -> None:
@@ -444,7 +456,7 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
         statusbar = None if event.IsChecked() else self.frame_statusbar
         self.SetStatusBar(statusbar)
         self.Layout()
-        self.panel_1.Layout()
+        self._redraw_clock()
         event.Skip()
 
     def on_menu_help_about(self, event) -> None:
@@ -515,11 +527,12 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
         new_font = widget_info[0].widget.GetFont().Scaled(scale)
         for widget, _ in widget_info:
             widget.SetFont(new_font)
+        boundary_object.Layout()
 
     def _resize_round(self) -> None:
         """Scale Round text to fit window."""
         if self._in_break:
-            scale_text = "TIME TO NEXT:"
+            scale_text = "NEXT ROUND IN: "
         else:
             scale_text = "ROUND 8" if self.settings.rounds < 10 else "ROUND 88"
         round_widget_info = (_WidgetInfo(self.label_round, scale_text),)
@@ -530,7 +543,7 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
         if not self.settings.description:
             return
         description_widget_info = (
-            _WidgetInfo(self.label_description, self.settings.description),
+            _WidgetInfo(self.label_description, f" {self.settings.description} "),
         )
         self._rescale_text(self.label_description, description_widget_info)
 
@@ -538,7 +551,7 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
         """Scale all clock widgets to fit window."""
         minutes_text = "88" if self.settings.round_length < 100 else "888"
         if self._game_finished:
-            minutes_text = "-" + minutes_text
+            minutes_text = f"-{minutes_text}"
         clock_widget_info = (
             _WidgetInfo(self.label_clock_minutes, minutes_text),
             _WidgetInfo(self.label_clock_colon, ":"),
@@ -546,15 +559,19 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
         )
         self._rescale_text(self.sizer_clock, clock_widget_info)
 
-    def on_resize(self, event) -> None:
-        """Hack to resolve sizer not auto-sizing with panel on maximize/unmaximize."""
+    def _resize_all(self) -> None:
+        """Scale everything."""
         self.Layout()
-        bc_log("In on_resize!")
         self.sizer_1.SetDimension(self.panel_1.GetPosition(), self.panel_1.GetSize())
         self._resize_round()
         self._resize_description()
         self._resize_clock()
-        self.panel_1.Layout()
+        self._redraw_clock()
+
+    def on_resize(self, event) -> None:
+        """Hack to resolve sizer not auto-sizing with panel on maximize/unmaximize."""
+        bc_log("In on_resize!")
+        self._resize_all()
         event.Skip()
 
     def fire_button_start(self, event) -> None:
@@ -576,17 +593,18 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
             f"clicked = {self.button_start.GetValue()}"
         )
 
+        if self._game_finished:
+            answer = wx.MessageBox(
+                "The game has ended.  Do you want to start another session "
+                "with the same parameters?",
+                "Start another session",
+                wx.YES_NO | wx.CANCEL,
+                self,
+            )
+            if answer == wx.YES:
+                self._initialize_game()
+
         if self.button_start.GetValue():
-            if self._game_finished:
-                answer = wx.MessageBox(
-                    "The game has ended.  Do you want to start another "
-                    "session with the same parameters?",
-                    "Start another session",
-                    wx.YES_NO | wx.CANCEL,
-                    self,
-                )
-                if answer == wx.YES:
-                    self._initialize_game()
             self._game_started = True  # provide "restart" option
             self.button_start.SetLabelText("Pause")
             if self.time_left_on_pause:
@@ -605,6 +623,8 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
     def on_button_clock_plus(self, event) -> None:
         """+1 minute button pressed."""
         self.round_end.Add(wx.TimeSpan.Minute())
+        if self.time_left_on_pause:
+            self.time_left_on_pause.Add(wx.TimeSpan.Minute())
         self._update_clock()
         event.Skip()
 
@@ -613,6 +633,11 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
         self.round_end.Subtract(wx.TimeSpan.Minute())
         if self.round_end <= wx.DateTime.Now():
             self.round_end = wx.DateTime.Now() + wx.TimeSpan(0, sec=5)
+        if self.time_left_on_pause:
+            if self.time_left_on_pause > wx.TimeSpan.Minute():
+                self.time_left_on_pause.Subtract(wx.TimeSpan.Minute())
+            else:
+                self.time_left_on_pause = wx.TimeSpan(0, sec=5)
         self._update_clock()
         event.Skip()
 
@@ -639,6 +664,9 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
     def on_button_end_round(self, event) -> None:
         """End the round now."""
         self.round_end = wx.DateTime.Now() + wx.TimeSpan(0, sec=2)
+        # issue #57 - if paused, adjust "time left on pause" as well
+        if self.time_left_on_pause:
+            self.time_left_on_pause = wx.TimeSpan(0, sec=2)
         self._update_clock()
         event.Skip()
 
@@ -659,7 +687,6 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
     def on_clock_tick(self, event) -> None:
         """One of the timers tripped, call the appropriate reaction"""
         if event.Id == self.timer.GetId():  # 250ms tick
-            # bc_log('second_tick')
             self._update_clock()
             if self.round_end <= wx.DateTime.Now() and not self._game_finished:
                 bc_log(
