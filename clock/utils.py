@@ -1,15 +1,36 @@
 """Utility functions used throughout clock."""
 
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
+import wx
 from playsound3.playsound3 import PlaysoundException, playsound
 
 DEBUG = True  # added error messages to stdout
 
-BREAK_COLOUR = "SLATE GREY"
-RUN_COLOUR = "DARK ORCHID"
-TEXT_COLOUR = "YELLOW"
+
+@dataclass(slots=True)
+class Palette:
+    """Colour themes for clock."""
+
+    break_: str | wx.Colour
+    clock: str | wx.Colour
+    run: str | wx.Colour
+    text: str | wx.Colour
+
+
+COLOURS = {
+    "Default": Palette(
+        break_="SLATE GREY", run="DARK ORCHID", clock="YELLOW", text="WHITE"
+    ),
+    "Blue": Palette(break_="SLATE GREY", run="ROYAL BLUE", clock="CYAN", text="WHITE"),
+    "Flash": Palette(break_="DEEP PINK", run="MAROON", clock="GOLD", text="BLACK"),
+    "Boring": Palette(
+        break_="SLATE GREY", run="BLACK", clock="OLD LACE", text="OLD LACE"
+    ),
+}
+
 ERROR_COLOUR = "RED"
 
 SOUNDS_DIR = Path("sound")

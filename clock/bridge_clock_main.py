@@ -13,7 +13,7 @@ import wx.lib.colourdb
 from clock import validators as vld
 
 from .clock_main_frame import RoundTimer, SetupDialog
-from .utils import BREAK_COLOUR, RUN_COLOUR, bc_log, play_sound
+from .utils import COLOURS, bc_log, play_sound
 
 
 @dataclasses.dataclass(slots=True)
@@ -28,7 +28,7 @@ class GameSettings:
     break_length: int = 5
     break_visible: bool = False
     description: str = ""
-    palette: int = 0
+    palette: str = "Default"
     sounds: bool = False
     manual_restart: bool = False
     load_last: dataclasses.InitVar[bool] = False
@@ -151,6 +151,9 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
         self._game_finished = False
         self._in_break = False  # only True when in visible break
 
+        # Change colours to the palette in the current settings
+        self._set_colours()
+
         # Initialize game
         self._initialize_game()
 
@@ -245,17 +248,24 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
         """Convenience function: calls Layout on the main panel."""
         self.panel_1.Layout()
 
-    def _set_bg(self, colour: wx.Colour | str) -> None:
-        """Set the background colour of the clock and round text areas."""
-        bc_log("in _set_bg")
-        for widget in (
-            self.label_round,
-            self.label_description,
-            self.label_clock_colon,
-            self.label_clock_minutes,
-            self.label_clock_seconds,
+    def _set_colours(self):
+        """(Re)set all the colours in the window to the current style."""
+        bc_log(
+            f"in _set_colours, in_break: {self._in_break}, "
+            f"current palette = {self.settings.palette}."
+        )
+        colours = COLOURS[self.settings.palette]
+        bg = colours.break_ if self._in_break else colours.run
+        for widget, is_clock in (
+            (self.label_round, False),
+            (self.label_description, False),
+            (self.label_clock_colon, True),
+            (self.label_clock_minutes, True),
+            (self.label_clock_seconds, True),
         ):
-            widget.SetBackgroundColour(colour)
+            widget.SetBackgroundColour(bg)
+            widget.SetForegroundColour(colours.clock if is_clock else colours.text)
+            widget.Refresh()
         self.panel_1.Refresh()
 
     @staticmethod
@@ -292,7 +302,7 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
     def _update_round(self) -> None:
         """Change the round label"""
         self._display_round_label(f"Round {self.round}")
-        self._set_bg(RUN_COLOUR)
+        self._set_colours()
         self._redraw_clock()
 
     def _reset_clock(self) -> None:
@@ -381,7 +391,7 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
     def _go_to_break(self) -> None:
         """Display a visible hospitality break, and count down."""
         self._in_break = True
-        self._set_bg(BREAK_COLOUR)
+        self._set_colours()
         self._display_round_label("NEXT ROUND IN:")
         self.round_end = wx.DateTime.Now() + wx.TimeSpan.Minutes(
             self.settings.break_length
@@ -444,6 +454,7 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
             if dlg.ShowModal() == wx.ID_OK:
                 new_values, restart = dlg.get_values()
                 self.settings.update_from_dict(new_values)
+                self._set_colours()
                 self._update_description()
                 self._update_statusbar()
                 if not self._game_started or restart:  # reset game
@@ -620,6 +631,7 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
             self.timer.Start(250)
         else:
             self._pause_game()
+        self._set_colours()
         event.Skip()
 
     def on_button_reset(self, event) -> None:
@@ -719,6 +731,8 @@ class PreferencesDialog(SetupDialog):  # pylint: disable=too-many-ancestors
         self.text_break_rounds.SetValidator(vld.BreakValidator())
         self.text_break_length.SetValidator(vld.BreakLengthValidator())
 
+        self.choice_palette.Set(list(COLOURS))
+
     def load(self, settings: GameSettings, game_started: bool) -> None:
         """Load Dialog with game's current settings."""
         self.text_round_count.ChangeValue(str(settings.rounds))
@@ -733,7 +747,12 @@ class PreferencesDialog(SetupDialog):  # pylint: disable=too-many-ancestors
         self.text_description.ChangeValue(settings.description)
 
         self.check_invisible.SetValue(not settings.break_visible)
-        self.choice_palette.SetSelection(settings.palette)
+
+        palette = self.choice_palette.FindString(settings.palette)
+        if palette == wx.NOT_FOUND:
+            palette = 0
+        self.choice_palette.SetSelection(palette)
+        self.on_palette_chosen(None)
         self.check_sounds.SetValue(settings.sounds)
 
         self.check_manual.SetValue(settings.manual_restart)
@@ -764,7 +783,9 @@ class PreferencesDialog(SetupDialog):  # pylint: disable=too-many-ancestors
                 else ""
             ),
             "manual_restart": self.check_manual.GetValue(),
-            "palette": self.choice_palette.GetSelection(),
+            "palette": self.choice_palette.GetString(
+                self.choice_palette.GetSelection()
+            ),
             "sounds": self.check_sounds.GetValue(),
         }
         return ret, self.check_restart.IsChecked()
@@ -785,6 +806,13 @@ class PreferencesDialog(SetupDialog):  # pylint: disable=too-many-ancestors
             if answer != wx.YES:
                 self.check_restart.SetValue(False)
         event.Skip()
+
+    def on_palette_chosen(self, event) -> None:
+        """When a palette is chosen, paint the label with those colours"""
+        palette = self.choice_palette.GetString(self.choice_palette.GetSelection())
+        self.label_palette.SetForegroundColour(COLOURS[palette].text)
+        self.label_palette.SetBackgroundColour(COLOURS[palette].run)
+        self.label_palette.Refresh()
 
 
 class MyApp(wx.App):
