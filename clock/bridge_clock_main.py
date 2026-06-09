@@ -8,10 +8,12 @@ from typing import Callable, ClassVar, NamedTuple, Optional, Tuple
 
 import wx
 import wx.adv
+import wx.lib.colourdb
 
-import validators as vld
-from clock_main_frame import RoundTimer, SetupDialog
-from utils import BREAK_COLOUR, RUN_COLOUR, bc_log, play_sound
+from clock import validators as vld
+
+from .clock_main_frame import RoundTimer, SetupDialog
+from .utils import BREAK_COLOUR, RUN_COLOUR, bc_log, play_sound
 
 
 @dataclasses.dataclass(slots=True)
@@ -26,6 +28,7 @@ class GameSettings:
     break_length: int = 5
     break_visible: bool = False
     description: str = ""
+    palette: int = 0
     sounds: bool = False
     manual_restart: bool = False
     load_last: dataclasses.InitVar[bool] = False
@@ -242,7 +245,7 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
         """Convenience function: calls Layout on the main panel."""
         self.panel_1.Layout()
 
-    def _set_bg(self, colour: str) -> None:
+    def _set_bg(self, colour: wx.Colour | str) -> None:
         """Set the background colour of the clock and round text areas."""
         bc_log("in _set_bg")
         for widget in (
@@ -354,22 +357,26 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
                 self._go_to_break()
                 self._play_sound("go_to_break")
             else:
-                self.round += 1
-                self._in_break = False
-                self.button_end_round.SetLabel("End Round")
+                self._go_to_next_round()
                 self._play_sound("round_end")
-                self._update_round()
-                self._reset_clock()
-                if not self.settings.break_visible and self._break_this_round():
-                    self.round_end.Add(wx.TimeSpan.Minutes(self.settings.break_length))
-                    self._update_clock()
-                self._update_statusbar()
-                if self.settings.manual_restart:
-                    self._pause_game()
-                bc_log("next round!")
         else:  # last round done, game over
             self._play_sound("game_over")
             self._game_over()
+
+    def _go_to_next_round(self):
+        """Do all the things needed to move from (break after) round X) to round X+1"""
+        self.round += 1
+        self._in_break = False
+        self.button_end_round.SetLabel("End Round")
+        self._update_round()
+        self._reset_clock()
+        if not self.settings.break_visible and self._break_this_round():
+            self.round_end.Add(wx.TimeSpan.Minutes(self.settings.break_length))
+            self._update_clock()
+        self._update_statusbar()
+        if self.settings.manual_restart:
+            self._pause_game()
+        bc_log("next round!")
 
     def _go_to_break(self) -> None:
         """Display a visible hospitality break, and count down."""
@@ -726,12 +733,14 @@ class PreferencesDialog(SetupDialog):  # pylint: disable=too-many-ancestors
         self.text_description.ChangeValue(settings.description)
 
         self.check_invisible.SetValue(not settings.break_visible)
-        self.check_manual.SetValue(settings.manual_restart)
+        self.choice_palette.SetSelection(settings.palette)
         self.check_sounds.SetValue(settings.sounds)
-        if game_started:  # show the restart button
-            self.check_restart.Show()
-            self.check_restart.SetValue(False)
-            self.GetSizer().SetSizeHints(self)
+
+        self.check_manual.SetValue(settings.manual_restart)
+
+        self.check_restart.Show(game_started)  # only show restart if running
+        self.check_restart.SetValue(False)
+        self.GetSizer().SetSizeHints(self)
 
     def get_values(self) -> Tuple[dict, bool]:
         """Pull values from dialog.
@@ -755,6 +764,7 @@ class PreferencesDialog(SetupDialog):  # pylint: disable=too-many-ancestors
                 else ""
             ),
             "manual_restart": self.check_manual.GetValue(),
+            "palette": self.choice_palette.GetSelection(),
             "sounds": self.check_sounds.GetValue(),
         }
         return ret, self.check_restart.IsChecked()
@@ -796,4 +806,6 @@ class MyApp(wx.App):
 
 if __name__ == "__main__":
     app = MyApp(0)
+    # need an app before you can play with TheColourDatabase
+    wx.lib.colourdb.updateColourDB()
     app.MainLoop()
