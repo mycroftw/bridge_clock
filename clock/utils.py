@@ -5,10 +5,13 @@ from typing import Optional
 
 from playsound3.playsound3 import PlaysoundException, playsound
 
-DEBUG = True
-BREAK_COLOUR = "#8C92AC"  # slate grey, on a break
-RUN_COLOUR = "#B00FFF"  # purple, not on break
-ERROR_COLOUR = "#FF0000"  # red, background for error in settings
+DEBUG = True  # added error messages to stdout
+
+BREAK_COLOUR = "SLATE GREY"
+RUN_COLOUR = "DARK ORCHID"
+TEXT_COLOUR = "YELLOW"
+ERROR_COLOUR = "RED"
+
 SOUNDS_DIR = Path("sound")
 DEFAULT_SOUND = "default"  # required sound, used if other sound file DNE
 NO_SOUND = "silence"  # required sound, used for testing

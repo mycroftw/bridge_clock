@@ -11,7 +11,7 @@ from typing import Optional
 import wx
 from playsound3.playsound3 import PlaysoundException
 
-from utils import (
+from .utils import (
     DEFAULT_SOUND,
     ERROR_COLOUR,
     NO_SOUND,
