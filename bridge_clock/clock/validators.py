@@ -11,7 +11,7 @@ from typing import Optional
 import wx
 from playsound3.playsound3 import PlaysoundException
 
-from .utils import (
+from bridge_clock.clock.utils import (
     DEFAULT_SOUND,
     ERROR_COLOUR,
     NO_SOUND,

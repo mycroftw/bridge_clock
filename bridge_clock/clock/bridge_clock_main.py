@@ -10,10 +10,9 @@ import wx
 import wx.adv
 import wx.lib.colourdb
 
-from clock import validators as vld
-
-from .clock_main_frame import RoundTimer, SetupDialog
-from .utils import COLOURS, bc_log, play_sound
+from bridge_clock.clock import validators as vld
+from bridge_clock.clock.clock_main_frame import RoundTimer, SetupDialog
+from bridge_clock.clock.utils import COLOURS, bc_log, play_sound
 
 
 @dataclasses.dataclass(slots=True)
@@ -33,7 +32,7 @@ class GameSettings:
     manual_restart: bool = False
     load_last: dataclasses.InitVar[bool] = False
 
-    DEFAULT_SAVE: ClassVar[Path] = Path("_last_settings.json")
+    DEFAULT_SAVE: ClassVar[Path] = Path("bridge_clock/_last_settings.json")
     NO_SAVE_SETTINGS: ClassVar[tuple] = ("unscheduled_breaks",)
 
     def __post_init__(self, dict_: dict, load_last: bool) -> None:
@@ -151,11 +150,11 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
         self._game_finished = False
         self._in_break = False  # only True when in visible break
 
-        # Change colours to the palette in the current settings
-        self._set_colours()
-
         # Initialize game
         self._initialize_game()
+
+        # Change colours to the palette in the current settings
+        self._set_colours()
 
     def _get_accelerators(self) -> tuple[Accelerator, ...]:
         """Define Accelerator (context menu/shortcut key) info here."""
@@ -316,7 +315,7 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
     def _update_clock(self) -> None:
         """Display the current countdown clock value"""
         time_left = self.round_end - wx.DateTime.Now()
-        (minutes, seconds) = time_left.Format("%M:%S").split(":")
+        minutes, seconds = time_left.Format("%M:%S").split(":")
         for time, widget in (
             (minutes, self.label_clock_minutes),
             (seconds, self.label_clock_seconds),
@@ -481,9 +480,9 @@ class BridgeTimer(RoundTimer):  # pylint: disable=too-many-ancestors
         """Show the About box."""
         bc_log("showing About.")
         about_info = wx.adv.AboutDialogInfo()
-        about_info.SetVersion("0.9", "Alpha release 0.9, November 11, 2024")
+        about_info.SetVersion("0.91", "Alpha release 0.91, June 9, 2026")
         about_info.SetName("BridgeTimer")
-        about_info.SetCopyright("(C) Michael Farebrother 2023-2024")
+        about_info.SetCopyright("(C) Michael Farebrother 2023-2026")
         about_info.SetDescription(
             "\nAvailable from https://github.com/mycroftw/bridge_clock\n"
             "Licenced under the GPL v3.\n"
