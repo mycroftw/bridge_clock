@@ -1,14 +1,38 @@
 """Utility functions used throughout clock."""
 
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
+import wx
 from playsound3.playsound3 import PlaysoundException, playsound
 
-DEBUG = True
-BREAK_COLOUR = "#8C92AC"  # slate grey, on a break
-RUN_COLOUR = "#B00FFF"  # purple, not on break
-ERROR_COLOUR = "#FF0000"  # red, background for error in settings
+DEBUG = True  # added error messages to stdout
+
+
+@dataclass(slots=True)
+class Palette:
+    """Colour themes for clock."""
+
+    break_: str | wx.Colour
+    clock: str | wx.Colour
+    run: str | wx.Colour
+    text: str | wx.Colour
+
+
+COLOURS = {
+    "Default": Palette(
+        break_="SLATE GREY", run="DARK ORCHID", clock="YELLOW", text="WHITE"
+    ),
+    "Blue": Palette(break_="SLATE GREY", run="ROYAL BLUE", clock="CYAN", text="WHITE"),
+    "Flash": Palette(break_="DEEP PINK", run="MAROON", clock="GOLD", text="BLACK"),
+    "Boring": Palette(
+        break_="SLATE GREY", run="BLACK", clock="OLD LACE", text="OLD LACE"
+    ),
+}
+
+ERROR_COLOUR = "RED"
+
 SOUNDS_DIR = Path("sound")
 DEFAULT_SOUND = "default"  # required sound, used if other sound file DNE
 NO_SOUND = "silence"  # required sound, used for testing
