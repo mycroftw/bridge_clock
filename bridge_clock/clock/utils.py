@@ -33,7 +33,7 @@ COLOURS = {
 
 ERROR_COLOUR = "RED"
 
-SOUNDS_DIR = Path("sound")
+SOUNDS_DIR = Path("bridge_clock/sound")
 DEFAULT_SOUND = "default"  # required sound, used if other sound file DNE
 NO_SOUND = "silence"  # required sound, used for testing
 
