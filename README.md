@@ -26,14 +26,18 @@ It bears a strong resemblance to Rich Waugh's (at least for now), but with
 more of the features I want as a tournament director,
 and avoiding as many of the annoyances as I can.
 
-At this point, it's pre-release. It works, but that's about all I'll vouch for.
-Keeps reasonably correct time, if you don't keep pausing it or letting the
-computer hibernate or...
+At this point, it's beta. It works. 
+I can run multiples on the same computer, and it's obvious which is which.
+It keeps correct time (with a couple of bugs I haven't been able to reproduce).
 
-I don't even guarantee that all the options work (I know sound doesn't).
+I don't even guarantee that all the options work. 
+Sound now works (but it's - idiosyncratic.  See the [README.md](bridge_clock/sound/README.md) 
+  in the sound folder).
 
-I am now actively testing it in club games, but I know where the holes are :-)
-If you're comfortable with ALPHA release, go ahead and try it.
+I use it in club games and have installed it on at least two computers for other people,
+  including a dedicated laptop at my local unit, for use in tournaments.
+But I know where the holes are :-)
+If you're comfortable with BETA release, go ahead and try it.
 I expect the issues to pile up amazingly.
 
 ## Requirements
@@ -43,9 +47,62 @@ Unfortunately, with all the malware writers doing the same thing, it is very lik
 to get flagged as malware by Microsoft.
 Trust me (or check the code), it isn't; but this is a barrier to general release.
 
-Right now it is best to install Python (at least 3.8) and wxPython (Phoenix).
-If you don't know how to get those, this is too alpha for you,
+Right now it is best to install Python (at least 3.8) (optional: in a venv) and the dependencies:
+  - `wxPython` (Phoenix)[^1]
+  - `playsound3` (for sounds)
+  - `pytest` (for automated unit testing - which is coming soon(tm)).  
+      I'm going to figure out how to remove this necessity from release builds.
+
+If you don't know how to get those from a `pyproject.toml` file, this is too alpha for you,
 so I'm not providing instructions (yet).
 
-Once you have these, download the scripts in the clock subfolder, 
-run `python .\bridge_clock_main.py` and enjoy.
+Once you have these, download the project, and run `python -m bridge_clock` 
+(or `venv/bin/activate && python -m bridge_clock`) and enjoy.
+
+In `clock\utils.py`, there is a `DEBUG` constant.
+Set it to False if you like, but if you're going to submit a bug, I'd like the DEBUG log.
+
+Specifics for Windows:
+
+I have created a shortcut on my desktop, with the following parameters:
+ - **Target:** `C:\Windows\System32\cmd.exe /k .\venv\Scripts\activate.bat && python -m bridge_clock`
+ - **Start in:** `[main folder of project]` (where this file is)
+
+Specifics for Linux:
+  - Installing wxPython for Linux is not easy. 
+    If you can't use one of the prebuilt wheels and you don't do development on Linux, find someone who does.
+  - For `systemd` distros (if you don't know, you probably have one), 
+    the following .desktop file works on my machine:
+    ```
+    [Desktop Entry]
+    Name=clock
+    Exec=/path/to/clock.sh
+    Terminal=True
+    Icon=clock
+    Type=Application
+    ```
+    where the clock.sh is
+    ``` 
+    #! /bin/bash
+    source venv/bin/activate
+    python -m bridge_clock
+    ```
+    
+## Runtime notes:
+
+1. There are some constants at the top of `clock\utils.py` file.
+    - You can set `DEBUG` to `False` if you don't want the random noise being output;
+    but if you are submitting a bug, I'd really like the debug output.
+    - Feel free to change or add colour palettes - you can use 
+    [the named colours](https://github.com/wxWidgets/Phoenix/blob/master/wx/lib/colourdb.py)
+    (sorry, source code) or `"#FFFFFF"` style colour strings.
+    - **Back up the file** and **Be careful** before changing anything - 
+    any mistake will cause the clock to crash on start.
+2. Current known "don't do this" bugs:
+    - Don't use the `Hide Statusbar` option.
+    It breaks the layout unrepairably (see 
+    [Issue #24](https://github.com/mycroftw/bridge_clock/issues/24)).
+    - Sometimes, especially with "maximize" or repeatedly alternating between 
+    showing a description and hiding it, the layout resizing loses its mind.
+    Frequently, maximizing and de-maximizing the window will help.
+3. 
