@@ -35,7 +35,7 @@ class GameSettings:
     DEFAULT_SAVE: ClassVar[Path] = Path("bridge_clock/_last_settings.json")
     NO_SAVE_SETTINGS: ClassVar[tuple] = ("unscheduled_breaks",)
 
-    def __post_init__(self, dict_: dict, load_last: bool) -> None:
+    def __post_init__(self, dict_: Optional[dict], load_last: bool) -> None:
         """Load from database if provided or last settings if set."""
         if load_last:
             self.load_from_file(self.DEFAULT_SAVE)
@@ -58,7 +58,7 @@ class GameSettings:
         self.save_to_file(self.DEFAULT_SAVE)
 
     def load_from_file(self, f: Path) -> None:
-        """Load settings from json file."""
+        """Load settings from JSON file."""
         try:
             with f.open() as fh:
                 data = json.load(fh)

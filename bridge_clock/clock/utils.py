@@ -30,7 +30,6 @@ COLOURS = {
         break_="SLATE GREY", run="BLACK", clock="OLD LACE", text="OLD LACE"
     ),
 }
-
 ERROR_COLOUR = "RED"
 
 SOUNDS_DIR = Path("bridge_clock/sound")
