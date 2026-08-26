@@ -6,11 +6,11 @@ kept here to avoid cluttering up the main flow.
 """
 
 import dataclasses
-from typing import Optional
 
 import wx
 from playsound3.playsound3 import PlaysoundException
 
+import bridge_clock.clock.bridge_clock_main as m
 from bridge_clock.clock.utils import (
     DEFAULT_SOUND,
     ERROR_COLOUR,
@@ -25,7 +25,7 @@ from bridge_clock.clock.utils import (
 # pylint: disable=invalid-name
 
 
-@dataclasses.dataclass(slots=True)
+@dataclasses.dataclass(slots=True, frozen=True)
 class ValidatorLimits:
     """Limits for a validator that requires an int."""
 
@@ -91,6 +91,7 @@ class BaseValidator(wx.Validator):
         is pushed to an internal function, also used by the wx.EVT_TEXT callback.
         """
         ctrl = self.GetWindow()
+        ctrl: wx.TextCtrl
         text = ctrl.GetValue()
         try:
             self._validate(text)
@@ -107,6 +108,7 @@ class BaseValidator(wx.Validator):
     def on_char(self, event):
         """Value changed, light up background if invalid."""
         ctrl = self.GetWindow()
+        ctrl: wx.TextCtrl
         text = ctrl.GetValue()
         try:
             self._validate(text)
@@ -121,7 +123,7 @@ class BaseValidator(wx.Validator):
 class RoundCountValidator(BaseValidator):
     """Round count: positive int."""
 
-    def __init__(self, limits: Optional[ValidatorLimits] = ROUND_LIMITS):
+    def __init__(self, limits: ValidatorLimits = ROUND_LIMITS):
         super().__init__(limits=limits, validator_name="Round Count")
 
     def on_char(self, event):
@@ -132,7 +134,9 @@ class RoundCountValidator(BaseValidator):
         as well as the round validator.
         """
 
-        text_breaks = self.GetWindow().TopLevelParent.text_break_rounds
+        main_window = self.GetWindow().TopLevelParent
+        main_window: m.PreferencesDialog
+        text_breaks = main_window.text_break_rounds
         text_breaks.SetValue(text_breaks.GetValue())
         super().on_char(event)
 
@@ -140,7 +144,7 @@ class RoundCountValidator(BaseValidator):
 class RoundLengthValidator(BaseValidator):
     """Round length: int, in minutes."""
 
-    def __init__(self, limits: Optional[ValidatorLimits] = ROUND_LENGTH_LIMITS):
+    def __init__(self, limits: ValidatorLimits = ROUND_LENGTH_LIMITS):
         super().__init__(limits=limits, validator_name="Round Length")
 
 
@@ -148,29 +152,24 @@ class BreakValidator(wx.Validator):
     """Breaks: blank, or int, or comma-separated ints, all between 1..num rounds"""
 
     def __init__(self):
-
         super().__init__()
         self.Bind(wx.EVT_TEXT, self.on_char)
 
     def Clone(self):
         """Clone the validator.  Required by wx."""
-
         return BreakValidator()
 
     def TransferToWindow(self):
         """Return False if data transfer to the window fails."""
-
         return True
 
     def TransferFromWindow(self):
         """Return False if data transfer from the window fails."""
-
         return True
 
     @staticmethod
-    def _validate(value: str, parent: wx.TextCtrl) -> None:
+    def _validate(value: str, parent: wx.Window) -> None:
         """Do the validation. Throws BridgeClockValidationError on fail."""
-
         if not value:  # "no breaks" is valid
             return
 
@@ -183,13 +182,14 @@ class BreakValidator(wx.Validator):
             ) from e
 
         try:
-            num_rounds = int(parent.TopLevelParent.text_round_count.GetValue())
+            main_window = parent.TopLevelParent
+            main_window: m.PreferencesDialog
+            num_rounds = int(main_window.text_round_count.GetValue())
         except ValueError:
             # fake for validation; this will trigger validation failure in
             # Round Count, so not worrying about it
             num_rounds = 1
-        break_in_range = [break_round in range(1, num_rounds) for break_round in breaks]
-        if not all(break_in_range):
+        if any(break_round not in range(1, num_rounds) for break_round in breaks):
             raise BridgeClockValidateError(
                 f"Break rounds must be between round 1 and {num_rounds-1}"
             )
@@ -197,6 +197,7 @@ class BreakValidator(wx.Validator):
     def Validate(self, parent):
         """Break Rounds cs-ints, between 1 and Rounds, or blank (no breaks)."""
         ctrl = self.GetWindow()
+        ctrl: wx.TextCtrl
         value = ctrl.GetValue().strip()
         ctrl.SetValue(value)
 
@@ -211,6 +212,7 @@ class BreakValidator(wx.Validator):
     def on_char(self, event):
         """Value changed, light up background if invalid."""
         ctrl = self.GetWindow()
+        ctrl: wx.TextCtrl
         text = ctrl.GetValue().strip()
         try:
             self._validate(text, ctrl.GetParent())
@@ -225,7 +227,7 @@ class BreakValidator(wx.Validator):
 class BreakLengthValidator(BaseValidator):
     """Break length: int, in minutes."""
 
-    def __init__(self, limits: Optional[ValidatorLimits] = BREAK_LENGTH_LIMITS):
+    def __init__(self, limits: ValidatorLimits = BREAK_LENGTH_LIMITS):
         super().__init__(limits=limits, validator_name="Break Length")
 
 
@@ -251,7 +253,9 @@ class SoundValidator(wx.Validator):
     def _fail_validation(self, message: str) -> None:
         """Display a message and uncheck the sounds box."""
         wx.MessageBox(message)
-        self.GetWindow().SetChecked(False)
+        checkbox = self.GetWindow()
+        checkbox: wx.CheckBox
+        checkbox.SetValue(False)
 
     @staticmethod
     def _sounds_play() -> str:
@@ -279,7 +283,9 @@ class SoundValidator(wx.Validator):
     # pylint: disable=unused-argument
     def Validate(self, parent: wx.Window) -> bool:
         """Confirm sounds can be played.  If not, warn user and disable sounds."""
-        if self.GetWindow().IsChecked():
+        checkbox = self.GetWindow()
+        checkbox: wx.CheckBox
+        if checkbox.IsChecked():
             return self._test_sound()
         # otherwise sounds not wanted, so we're good.
         return True
@@ -288,3 +294,4 @@ class SoundValidator(wx.Validator):
         """Confirm sounds can be played.  If not, warn user and uncheck sound box."""
         if event.IsChecked():
             self._test_sound()
+        event.Skip()
